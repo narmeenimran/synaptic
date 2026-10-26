@@ -1,12 +1,12 @@
-# Synapse AI
+# Synaptic
 
-Synapse is an AI-assisted spaced-repetition workspace. It turns text-based PDFs into flashcards, schedules reviews, records confidence, and generates focused quizzes from cards that need more practice.
+Synaptic is an AI-assisted spaced-repetition workspace. It turns text-based PDFs into flashcards, schedules reviews, records confidence, and generates focused quizzes from cards that need more practice.
 
 ## Run locally
 
 1. Install the dependencies with `npm install`.
 2. Copy `.env.example` to `.env` and fill in the Supabase URL/public anon key, Nebius API key, and (optionally) Tavily API key.
-3. In the Supabase SQL Editor, run [`supabase/migrations/202610260001_synapse_study_workspace.sql`](./supabase/migrations/202610260001_synapse_study_workspace.sql).
+3. In the Supabase SQL Editor, run [`supabase/migrations/202610260001_synapse_study_workspace.sql`](./supabase/migrations/202610260001_synapse_study_workspace.sql), then [`supabase/migrations/202610260002_synapse_starter_decks.sql`](./supabase/migrations/202610260002_synapse_starter_decks.sql), and [`supabase/migrations/202610260003_synaptic_avatars.sql`](./supabase/migrations/202610260003_synaptic_avatars.sql).
 4. Enable email/password sign-in in Supabase Authentication.
 5. Start the app with `npm start` and open `http://localhost:3000`.
 
@@ -15,6 +15,8 @@ The anon key is public client configuration; Nebius and Tavily keys stay server-
 ## Study workflow
 
 - Create a deck from a text-based PDF. PDF uploads are processed in memory and are not stored.
+- New accounts start with three sample decks (Biology: Cell Basics, AI: Uses and Benefits, and Space: Our Solar System), containing 5, 10, and 15 original practice cards. Existing accounts with decks are not changed.
+- Upload a JPG or PNG up to 5 MB as a profile avatar; images are stored in the user's own Supabase Storage folder.
 - Reopen any saved deck from the dashboard or library and study all its cards again at any time, whether or not they are currently due.
 - Review due cards and rate recall as Again, Hard, Good, or Easy.
 - Review history and card schedules are stored per account; row-level security protects each user's profile, decks, cards, and reviews.
@@ -28,6 +30,7 @@ The Supabase migration is required before signing in to the study workspace. If 
 ## AI generation troubleshooting
 
 - Keep the terminal running `npm start` open while generating cards; provider diagnostics are written there.
+- If the AI returns malformed or fewer cards than requested, generation automatically retries once before reporting a validation error.
 - If generation is rejected, the app reports common Nebius causes such as an invalid key, unavailable model, rate limit, or oversized request. Check the terminal for the provider's status and error detail, but never share or publish `.env` values.
 - After changing `.env`, restart the server. If a request fails with HTTP 400, try shorter study material or a smaller card count.
 

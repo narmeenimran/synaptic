@@ -102,6 +102,10 @@ export async function generateFlashcards(lectureContent, enableSearch = false, c
   }
 
   const searchContext = enableSearch ? await searchContextFor(lectureContent) : '';
+  return requestFlashcards(lectureContent, Number(cardCount), searchContext, 0);
+}
+
+async function requestFlashcards(lectureContent, cardCount, searchContext, attempt) {
   const model = process.env.NEBIUS_MODEL || DEFAULT_MODEL;
   const baseUrl = (process.env.NEBIUS_BASE_URL || NEBIUS_BASE_URL).replace(/\/+$/, '');
   let response;
@@ -120,15 +124,15 @@ export async function generateFlashcards(lectureContent, enableSearch = false, c
         messages: [
           {
             role: 'system',
-            content: 'Create accurate active-recall flashcards from the provided study material. Return valid JSON only, as an object with a "cards" array. Each card must contain only string "question" and "answer" fields. Escape quotation marks and special characters correctly in JSON strings.'
+            content: 'Create accurate active-recall flashcards from the provided study material. Return valid JSON only, as an object with a "cards" array containing exactly the requested number of cards. Count the cards before responding. Each card must contain only string "question" and "answer" fields. Keep the cards concise and distinct. Escape quotation marks and special characters correctly in JSON strings.'
           },
           {
             role: 'user',
-            content: `Create exactly ${Number(cardCount)} distinct, useful flashcards. Favor concise questions and answers. Do not invent claims unsupported by the material.\n${searchContext ? `Use this additional web context only when relevant:\n${searchContext}\n` : ''}Study material:\n${lectureContent.trim()}`
+            content: `${attempt > 0 ? `The previous attempt did not return exactly ${Number(cardCount)} valid cards. Regenerate the complete set and ensure the cards array contains exactly ${Number(cardCount)} items. ` : ''}Create exactly ${Number(cardCount)} distinct, useful flashcards. Favor concise questions and answers. Do not invent claims unsupported by the material.\n${searchContext ? `Use this additional web context only when relevant:\n${searchContext}\n` : ''}Study material:\n${lectureContent.trim()}`
           }
         ],
         temperature: 0.2,
-        max_tokens: Math.min(5000, Number(cardCount) * 300)
+        max_tokens: Math.min(5000, cardCount * 300)
       })
     });
   } catch {
@@ -144,12 +148,20 @@ export async function generateFlashcards(lectureContent, enableSearch = false, c
   const result = await response.json();
   const content = result.choices?.[0]?.message?.content;
   if (typeof content !== 'string') {
+    if (attempt === 0) {
+      console.warn('AI flashcard output was empty; retrying once.');
+      return requestFlashcards(lectureContent, cardCount, searchContext, attempt + 1);
+    }
     throw Object.assign(new Error('The AI returned an empty response.'), { status: 502 });
   }
 
   try {
-    return validateCards(extractCards(content), Number(cardCount));
+    return validateCards(extractCards(content), cardCount);
   } catch (error) {
-    throw Object.assign(new Error(`Could not validate AI flashcards: ${error.message}`), { status: 502 });
+    if (attempt === 0) {
+      console.warn('AI flashcard output did not validate; retrying once:', error.message);
+      return requestFlashcards(lectureContent, cardCount, searchContext, attempt + 1);
+    }
+    throw Object.assign(new Error(`Could not validate AI flashcards after one retry: ${error.message}`), { status: 502 });
   }
 }

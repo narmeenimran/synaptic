@@ -7,6 +7,7 @@ import OpenAI from 'openai';
 import { generateFlashcards } from './flashcards.js';
 import { calculateReviewSchedule } from './srs.js';
 import { validateDeckQuiz } from './deck-quiz.js';
+import { STARTER_DECKS } from './starter-decks.js';
 
 const router = express.Router();
 const upload = multer({
@@ -207,13 +208,25 @@ router.patch('/profile', async (req, res) => {
     }
     if (Object.hasOwn(req.body, 'avatar')) {
       const avatar = req.body.avatar;
-      if (typeof avatar !== 'string' || avatar.length > 150000) {
+      if (typeof avatar !== 'string') {
         return res.status(400).json({ error: 'Choose a valid avatar image or emoji.' });
       }
       const isEmoji = avatar.length <= 32 && !/[<>]/.test(avatar);
-      const isImage = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(avatar);
-      if (!isEmoji && !isImage) {
-        return res.status(400).json({ error: 'Choose an emoji or PNG, JPEG, or WebP avatar.' });
+      const isLegacyImage = avatar.length <= 150000 &&
+        /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/=]+$/.test(avatar);
+      let isOwnedStorageImage = false;
+      try {
+        const configuredUrl = new URL(getSupabaseConfig().url);
+        const avatarUrl = new URL(avatar);
+        isOwnedStorageImage = avatarUrl.origin === configuredUrl.origin &&
+          new RegExp(`^/storage/v1/object/public/synaptic-avatars/${req.user.id}/avatar\\.(?:jpg|png)$`).test(avatarUrl.pathname) &&
+          [...avatarUrl.searchParams.keys()].every(key => key === 'v') &&
+          [...avatarUrl.searchParams.values()].every(value => /^\d+$/.test(value));
+      } catch {
+        isOwnedStorageImage = false;
+      }
+      if (!isEmoji && !isLegacyImage && !isOwnedStorageImage) {
+        return res.status(400).json({ error: 'Choose an emoji or upload a JPG or PNG avatar.' });
       }
       updates.avatar = avatar;
     }
@@ -236,6 +249,67 @@ router.patch('/profile', async (req, res) => {
   }
 });
 
+async function ensureStarterDecks(req, existingDecks) {
+  const profileTable = req.db.from('synapse_profiles');
+  const { data: profile, error: profileError } = await profileTable
+    .select('starter_decks_seeded')
+    .eq('user_id', req.user.id)
+    .maybeSingle();
+  if (profileError) return { error: profileError };
+  if (!profile || profile.starter_decks_seeded) return { created: false };
+
+  if (existingDecks.length) {
+    const { error } = await profileTable
+      .update({ starter_decks_seeded: true })
+      .eq('user_id', req.user.id)
+      .eq('starter_decks_seeded', false);
+    return error ? { error } : { created: false };
+  }
+
+  const { data: claim, error: claimError } = await profileTable
+    .update({ starter_decks_seeded: true })
+    .eq('user_id', req.user.id)
+    .eq('starter_decks_seeded', false)
+    .select('user_id')
+    .maybeSingle();
+  if (claimError) return { error: claimError };
+  if (!claim) return { created: false };
+
+  const { data: decks, error: deckError } = await req.db
+    .from('synapse_decks')
+    .insert(STARTER_DECKS.map(deck => ({
+      title: deck.title,
+      source_type: 'notes',
+      source_detail: deck.sourceDetail
+    })))
+    .select('id, title');
+
+  if (deckError) {
+    await profileTable.update({ starter_decks_seeded: false }).eq('user_id', req.user.id);
+    return { error: deckError };
+  }
+
+  const deckIdsByTitle = new Map(decks.map(deck => [deck.title, deck.id]));
+  const cards = STARTER_DECKS.flatMap(deck => deck.cards.map(card => ({
+    deck_id: deckIdsByTitle.get(deck.title),
+    question: card.question,
+    answer: card.answer
+  })));
+  const { error: cardsError } = await req.db.from('synapse_cards').insert(cards);
+
+  if (cardsError) {
+    const { error: cleanupError } = await req.db
+      .from('synapse_decks')
+      .delete()
+      .in('id', decks.map(deck => deck.id));
+    if (cleanupError) console.error('Could not remove incomplete starter decks:', cleanupError.message);
+    await profileTable.update({ starter_decks_seeded: false }).eq('user_id', req.user.id);
+    return { error: cardsError };
+  }
+
+  return { created: true };
+}
+
 router.get('/decks', async (req, res) => {
   const { data, error } = await req.db
     .from('synapse_decks')
@@ -243,7 +317,25 @@ router.get('/decks', async (req, res) => {
     .order('created_at', { ascending: false });
 
   if (error) return sendDatabaseError(res, error);
-  const decks = data.map(({ synapse_cards: cards, ...deck }) => ({
+  const starterResult = await ensureStarterDecks(req, data);
+  if (starterResult.error) {
+    if (['42703', 'PGRST204'].includes(starterResult.error.code)) {
+      return res.status(503).json({
+        error: 'Starter decks need a database update. Run supabase/migrations/202610260002_synapse_starter_decks.sql in the Supabase SQL Editor.'
+      });
+    }
+    return sendDatabaseError(res, starterResult.error);
+  }
+
+  const decksResult = starterResult.created
+    ? await req.db
+      .from('synapse_decks')
+      .select('*, synapse_cards(*)')
+      .order('created_at', { ascending: false })
+    : { data, error: null };
+  if (decksResult.error) return sendDatabaseError(res, decksResult.error);
+
+  const decks = decksResult.data.map(({ synapse_cards: cards, ...deck }) => ({
     ...deck,
     cards: cards || []
   }));
@@ -578,45 +670,43 @@ router.post('/weakness-quiz', async (req, res) => {
     if (!Array.isArray(weakCards) || weakCards.length === 0 || weakCards.length > 10) {
       return res.status(400).json({ error: 'Provide between 1 and 10 weak cards.' });
     }
-    const concepts = weakCards.map(card => ({
+    const concepts = weakCards.slice(0, 3).map((card, index) => ({
+      sourceCardId: `weak-card-${index + 1}`,
       question: validateText(card?.question, 'Card question', 1, 2000),
       answer: validateText(card?.answer, 'Card answer', 1, 4000)
     }));
 
     const response = await getAiClient().chat.completions.create({
       model: getModel(),
-      messages: [{
-        role: 'user',
-        content: `Create 3 multiple-choice questions that test understanding of these concepts. Return only a JSON array. Each item must have "question", "options" (exactly four distinct strings), "correctAnswer" (one exact option), and "explanation".\n${JSON.stringify(concepts)}`
-      }],
-      temperature: 0.25,
-      max_tokens: 900
-    });
+      reasoning_effort: 'none',
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: 'Create one source-grounded multiple-choice quiz question per supplied study card. Return a JSON object with a "questions" array. For each item include sourceCardId copied exactly, question, exactly four distinct options, correctAnswer exactly matching one full option string, a short helpful hint, and a concise explanation. Base every question and answer only on its referenced card. Do not add outside facts.'
+        },
+        {
+          role: 'user',
+          content: `Create exactly ${concepts.length} question${concepts.length === 1 ? '' : 's'}, one for each card. Keep each question answerable from its own card only.\n${JSON.stringify(concepts)}`
+        }
+      ],
+      temperature: 0.2,
+      max_tokens: 1500
+    }, { timeout: 20000 });
 
-    const questions = parseModelJson(response.choices[0]?.message?.content || '');
-    if (!Array.isArray(questions) || questions.length !== 3) {
-      throw new Error('The AI did not return three quiz questions.');
-    }
-    const quizQuestions = questions.map(item => {
-      const question = validateText(item?.question, 'Quiz question', 1, 1000);
-      const options = item.options;
-      const correctAnswer = validateText(item?.correctAnswer, 'Correct answer', 1, 500);
-      const explanation = validateText(item?.explanation, 'Explanation', 1, 2000);
-      if (!Array.isArray(options) || options.length !== 4 || options.some(option => typeof option !== 'string' || !option.trim())) {
-        throw new Error('The AI returned invalid quiz options.');
-      }
-      const cleanOptions = options.map(option => option.trim());
-      if (new Set(cleanOptions.map(option => option.toLowerCase())).size !== 4 ||
-          !cleanOptions.some(option => option.toLowerCase() === correctAnswer.toLowerCase())) {
-        throw new Error('The AI returned inconsistent quiz answers.');
-      }
-      return { question, options: cleanOptions, correctAnswer, explanation };
-    });
+    const parsed = JSON.parse(response.choices?.[0]?.message?.content || '');
+    const questions = validateDeckQuiz(parsed.questions, concepts);
+    const quizQuestions = questions.map(({ question, options, correctAnswer, explanation }) => ({
+      question,
+      options,
+      correctAnswer,
+      explanation
+    }));
     return res.json({ success: true, quizQuestions });
   } catch (error) {
     if (error?.status) return res.status(error.status).json({ error: error.message });
     console.error('Weakness quiz generation failed:', error?.message || 'Unknown error');
-    return res.status(502).json({ error: 'The AI could not create a valid quiz. Please try again.' });
+    return res.status(502).json({ error: 'Could not build a source-grounded focused quiz. Please try again.' });
   }
 });
 
