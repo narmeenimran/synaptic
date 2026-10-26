@@ -18,6 +18,8 @@ export function extractTextFromPDF(buffer) {
       }
     });
 
-    pdfParser.parseBuffer(buffer);
+    const parserBuffer = Buffer.allocUnsafeSlow(buffer.byteLength);
+    Buffer.from(buffer).copy(parserBuffer);
+    pdfParser.parseBuffer(parserBuffer);
   });
 }

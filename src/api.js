@@ -2,12 +2,12 @@ import express from 'express';
 import path from 'node:path';
 import multer from 'multer';
 import { createClient } from '@supabase/supabase-js';
-import { PDFParse } from 'pdf-parse';
 import OpenAI from 'openai';
 import { generateFlashcards } from './flashcards.js';
 import { calculateReviewSchedule } from './srs.js';
 import { validateDeckQuiz } from './deck-quiz.js';
 import { STARTER_DECKS } from './starter-decks.js';
+import { extractTextFromPDF } from './pdf.js';
 
 const router = express.Router();
 const upload = multer({
@@ -424,7 +424,6 @@ router.post('/generate', async (req, res) => {
 });
 
 router.post('/upload-pdf', upload.single('pdfFile'), async (req, res) => {
-  let parser;
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Choose a PDF file to upload.' });
@@ -442,9 +441,7 @@ router.post('/upload-pdf', upload.single('pdfFile'), async (req, res) => {
       return res.status(400).json({ error: 'Search preference must be true or false.' });
     }
 
-    parser = new PDFParse({ data: req.file.buffer });
-    const pdfData = await parser.getText();
-    const content = (pdfData.text || '').trim();
+    const content = (await extractTextFromPDF(req.file.buffer)).trim();
     if (content.length < 30) {
       return res.status(422).json({ error: 'No readable text was found. This may be a scanned PDF; upload a text-based PDF or paste notes instead.' });
     }
@@ -461,10 +458,6 @@ router.post('/upload-pdf', upload.single('pdfFile'), async (req, res) => {
     return res.status(201).json({ success: true, deck });
   } catch (error) {
     return handleRouteError(res, error, 'PDF upload failed');
-  } finally {
-    if (parser) {
-      await parser.destroy();
-    }
   }
 });
 

@@ -1,6 +1,3 @@
-global.DOMMatrix = class DOMMatrix {};
-global.ImageData = class ImageData {};
-global.Path2D = class Path2D {};
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import dotenv from 'dotenv';
