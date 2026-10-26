@@ -19,6 +19,7 @@ The anon key is public client configuration; Nebius and Tavily keys stay server-
 - Review due cards and rate recall as Again, Hard, Good, or Easy.
 - Review history and card schedules are stored per account; row-level security protects each user's profile, decks, cards, and reviews.
 - Open concise AI explanations in a docked side panel while keeping the current study card visible.
+- Build a separate multiple-choice quiz from a saved deck. Each question is tied to one of that deck's source flashcards; wrong answers show a hint and allow another try.
 - Use the Weak Spots view to revisit low-mastery cards and generate a short AI quiz.
 - Use live research only when Tavily is configured; AI explanations and card generation require Nebius.
 
@@ -32,5 +33,5 @@ The Supabase migration is required before signing in to the study workspace. If 
 
 ## Checks
 
-- `npm test` runs the focused scheduling tests.
+- `npm test` runs the focused quiz-validation and spaced-repetition tests.
 - `node --check server.js` and `node --check src/api.js` validate server JavaScript syntax.

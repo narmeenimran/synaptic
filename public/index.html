@@ -123,6 +123,7 @@
           <span class="text-[10px] text-slate-400">AI / PDF</span>
         </button>
         <button onclick="switchTab('library'); closeCmdPalette();" class="cmd-item w-full text-left px-3 py-2 text-xs font-semibold hover:bg-slate-100 rounded-xl">Open library</button>
+        <button onclick="switchTab('deck-quiz'); closeCmdPalette();" class="cmd-item w-full text-left px-3 py-2 text-xs font-semibold hover:bg-slate-100 rounded-xl">Quiz me on a deck</button>
         <button onclick="startSmartReview(); closeCmdPalette();" class="cmd-item w-full text-left px-3 py-2 text-xs font-semibold hover:bg-slate-100 rounded-xl flex items-center justify-between">
           <span>🔥 Start Smart Review Session</span>
           <span class="text-[10px] text-slate-400">SRS due cards</span>
@@ -286,6 +287,9 @@
           <button onclick="switchTab('library')" id="nav-library" class="app-nav-button">
             <span>▤</span> <span>Library</span>
           </button>
+          <button onclick="switchTab('deck-quiz')" id="nav-deck-quiz" class="app-nav-button">
+            <span>☷</span> <span>Quiz</span>
+          </button>
           <button onclick="startSmartReview()" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all text-left">
             <span>◷</span> <span>Study due cards</span>
           </button>
@@ -411,6 +415,23 @@
           </div>
         </div>
         <div id="library-decks-list" class="library-grid"></div>
+      </section>
+
+      <section id="tab-deck-quiz" class="hidden space-y-5 max-w-3xl mx-auto">
+        <div class="page-intro">
+          <div><h2>Quiz yourself</h2><p>Practice multiple choice from your saved decks, with hints when you need another try.</p></div>
+        </div>
+        <div id="deck-quiz-setup" class="deck-quiz-setup">
+          <div class="deck-quiz-mark">✳</div>
+          <p class="eyebrow">GROUNDED IN YOUR STUDY CARDS</p>
+          <h3>Turn a deck into a quick challenge</h3>
+          <p class="deck-quiz-description">Questions are built from the cards in your deck. Choose the best answer; if you miss, you’ll get a clue and another try.</p>
+          <label for="deck-quiz-select">Choose a deck</label>
+          <select id="deck-quiz-select" aria-label="Choose a deck to quiz"></select>
+          <p id="deck-quiz-error" class="deck-quiz-error hidden" role="alert"></p>
+          <button id="deck-quiz-start" onclick="generateDeckQuiz()" class="button-primary">Build my quiz <span aria-hidden="true">→</span></button>
+        </div>
+        <div id="deck-quiz-content" class="deck-quiz-content hidden"></div>
       </section>
 
       <section id="tab-weak-spots" class="hidden space-y-5">
@@ -652,6 +673,7 @@
 
     let availableVoices = [];
     let currentQuiz = { questions: [], index: 0, retestCards: [] };
+    let currentDeckQuiz = { deck: null, questions: [], index: 0, score: 0, attempts: 0, answered: false };
     let authMode = 'signup';
     let libraryFilter = 'all';
     let isReviewSaving = false;
@@ -1634,16 +1656,12 @@
       container.innerHTML = savedDecks.slice(0, 4).map((deck, index) => {
         const cards = deck.cards || [];
         const dueCount = cards.filter(isCardDue).length;
-        const mastery = cards.length
-          ? Math.round((cards.filter(card => (card.repetition_level || 0) >= 2).length / cards.length) * 100)
-          : 0;
         return `
           <div class="flex flex-col sm:flex-row sm:items-center justify-between p-4 border border-slate-200/80 rounded-2xl bg-white gap-3">
             <div class="space-y-1 pr-4">
               <div class="flex flex-wrap items-center gap-2">
                 <h4 class="font-bold text-xs text-slate-900">${escapeHtml(deck.title)}</h4>
                 <span class="text-[10px] bg-teal-50 text-teal-700 font-semibold px-2 py-0.5 rounded-md border border-teal-100">${escapeHtml(deck.sourceType)}</span>
-                <span class="text-[10px] bg-slate-100 text-slate-800 font-semibold px-2 py-0.5 rounded-md border border-slate-200">${mastery}% mastered</span>
               </div>
               <p class="text-[11px] text-slate-500">${escapeHtml(deck.sourceDetail)}</p>
               <p class="text-[10px] text-slate-400">${cards.length} cards · ${dueCount} due · Created ${escapeHtml(deck.date)}</p>
@@ -1680,23 +1698,189 @@
       container.innerHTML = visibleDecks.map(({ deck, index }) => {
         const cards = deck.cards || [];
         const dueCount = cards.filter(isCardDue).length;
-        const mastery = cards.length ? Math.round(cards.filter(card => (card.repetition_level || 0) >= 2).length * 100 / cards.length) : 0;
         return `
           <article class="library-deck">
             <div>
               <h3>${escapeHtml(deck.title)}</h3>
               <p>${escapeHtml(deck.sourceDetail)} · ${escapeHtml(deck.date)}</p>
             </div>
-            <div class="deck-meta"><span>${cards.length} cards · ${dueCount} due</span><strong>${mastery}% mastered</strong></div>
+            <div class="deck-meta"><span>${cards.length} cards · ${dueCount} due</span></div>
             <div class="deck-actions">
               <button onclick="startStudySession(${index}, true)">Study all</button>
               <button onclick="startStudySession(${index})">${dueCount ? 'Study due' : 'Review all'}</button>
+              <button onclick="openDeckQuiz(${index})">Take quiz</button>
               <button onclick="exportDeckToCSV(${index})">Export</button>
               <button onclick="deleteDeck(${index})" aria-label="Delete ${escapeHtml(deck.title)}">Delete</button>
             </div>
           </article>
         `;
       }).join('');
+    }
+
+    function renderDeckQuizDeckOptions() {
+      const select = document.getElementById('deck-quiz-select');
+      const startButton = document.getElementById('deck-quiz-start');
+      if (!select || !startButton) return;
+      const previousValue = select.value;
+      select.replaceChildren();
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = savedDecks.length ? 'Select a study deck' : 'Create a deck first';
+      select.appendChild(placeholder);
+      savedDecks.forEach(deck => {
+        const option = document.createElement('option');
+        option.value = deck.id;
+        option.textContent = `${deck.title} · ${deck.cards.length} cards`;
+        select.appendChild(option);
+      });
+      if (savedDecks.some(deck => deck.id === previousValue)) select.value = previousValue;
+      startButton.disabled = savedDecks.length === 0;
+      startButton.classList.toggle('opacity-50', savedDecks.length === 0);
+    }
+
+    function openDeckQuiz(index) {
+      const deck = savedDecks[index];
+      if (!deck) return;
+      switchTab('deck-quiz');
+      const select = document.getElementById('deck-quiz-select');
+      select.value = deck.id;
+      document.getElementById('deck-quiz-error').classList.add('hidden');
+      document.getElementById('deck-quiz-content').classList.add('hidden');
+      document.getElementById('deck-quiz-setup').classList.remove('hidden');
+    }
+
+    async function generateDeckQuiz() {
+      const select = document.getElementById('deck-quiz-select');
+      const startButton = document.getElementById('deck-quiz-start');
+      const errorBox = document.getElementById('deck-quiz-error');
+      const deck = savedDecks.find(item => item.id === select.value);
+      if (!deck) {
+        errorBox.textContent = 'Choose one of your decks first.';
+        errorBox.classList.remove('hidden');
+        return;
+      }
+
+      errorBox.classList.add('hidden');
+      startButton.disabled = true;
+      startButton.textContent = 'Building questions…';
+      try {
+        const result = await apiRequest(`/api/decks/${encodeURIComponent(deck.id)}/quiz`, {
+          method: 'POST',
+          body: JSON.stringify({})
+        });
+        currentDeckQuiz = {
+          deck: result.deck,
+          questions: result.questions,
+          index: 0,
+          score: 0,
+          attempts: 0,
+          answered: false
+        };
+        if (!Array.isArray(currentDeckQuiz.questions) || currentDeckQuiz.questions.length === 0) {
+          throw new Error('No quiz questions were returned for this deck.');
+        }
+        renderDeckQuizQuestion();
+      } catch (error) {
+        errorBox.textContent = error.message;
+        errorBox.classList.remove('hidden');
+      } finally {
+        startButton.disabled = false;
+        startButton.innerHTML = 'Build my quiz <span aria-hidden="true">→</span>';
+      }
+    }
+
+    function renderDeckQuizQuestion() {
+      const setup = document.getElementById('deck-quiz-setup');
+      const content = document.getElementById('deck-quiz-content');
+      setup.classList.add('hidden');
+      content.classList.remove('hidden');
+
+      if (currentDeckQuiz.index >= currentDeckQuiz.questions.length) {
+        const percentage = Math.round(currentDeckQuiz.score * 100 / currentDeckQuiz.questions.length);
+        content.innerHTML = `
+          <div class="deck-quiz-results">
+            <span class="session-complete-mark">✓</span>
+            <p class="eyebrow">QUIZ COMPLETE</p>
+            <h3>${currentDeckQuiz.score} of ${currentDeckQuiz.questions.length} correct</h3>
+            <p>You got ${percentage}% on <strong>${escapeHtml(currentDeckQuiz.deck.title)}</strong>. Review the source cards any time to reinforce what you learned.</p>
+            <button onclick="openDeckQuiz(${savedDecks.findIndex(deck => deck.id === currentDeckQuiz.deck.id)})" class="button-primary">Try another round <span aria-hidden="true">→</span></button>
+            <button onclick="switchTab('library')" class="button-secondary">Back to library</button>
+          </div>
+        `;
+        return;
+      }
+
+      const item = currentDeckQuiz.questions[currentDeckQuiz.index];
+      currentDeckQuiz.attempts = 0;
+      currentDeckQuiz.answered = false;
+      content.innerHTML = `
+        <div class="deck-quiz-card">
+          <div class="deck-quiz-progress"><span>DECK QUIZ · ${escapeHtml(currentDeckQuiz.deck.title)}</span><span>Question ${currentDeckQuiz.index + 1} of ${currentDeckQuiz.questions.length}</span></div>
+          <div class="deck-quiz-progress-track"><span style="width:${Math.round(currentDeckQuiz.index * 100 / currentDeckQuiz.questions.length)}%"></span></div>
+          <h3>${escapeHtml(item.question)}</h3>
+          <div class="deck-quiz-options">
+            ${item.options.map((option, index) => `<button type="button" class="deck-quiz-option" data-option-index="${index}"><span>${String.fromCharCode(65 + index)}</span>${escapeHtml(option)}</button>`).join('')}
+          </div>
+          <div id="deck-quiz-feedback" class="deck-quiz-feedback hidden" role="status"></div>
+          <div class="deck-quiz-source"><span>GROUNDED IN</span><p>${escapeHtml(currentDeckQuiz.deck.sourceDetail || currentDeckQuiz.deck.title)} · Source card: “${escapeHtml(item.sourceCard)}”</p></div>
+          <div class="deck-quiz-controls">
+            <span id="deck-quiz-score">${currentDeckQuiz.score} correct so far</span>
+            <div id="deck-quiz-next-area" class="hidden"><button type="button" onclick="advanceDeckQuiz()" class="button-primary">Next question <span aria-hidden="true">→</span></button></div>
+          </div>
+        </div>
+      `;
+      content.querySelectorAll('.deck-quiz-option').forEach(button => {
+        button.addEventListener('click', () => chooseDeckQuizOption(Number(button.dataset.optionIndex)));
+      });
+    }
+
+    function chooseDeckQuizOption(optionIndex) {
+      if (currentDeckQuiz.answered) return;
+      const item = currentDeckQuiz.questions[currentDeckQuiz.index];
+      const buttons = [...document.querySelectorAll('.deck-quiz-option')];
+      const selectedButton = buttons[optionIndex];
+      if (!item || !selectedButton || selectedButton.disabled) return;
+      const feedback = document.getElementById('deck-quiz-feedback');
+      const isCorrect = item.options[optionIndex].trim().toLowerCase() === item.correctAnswer.trim().toLowerCase();
+
+      if (isCorrect) {
+        currentDeckQuiz.answered = true;
+        currentDeckQuiz.score++;
+        selectedButton.classList.add('is-correct');
+        buttons.forEach(button => { button.disabled = true; });
+        feedback.className = 'deck-quiz-feedback is-correct';
+        feedback.innerHTML = `<strong>That’s right.</strong> ${escapeHtml(item.explanation)}<span class="deck-quiz-hint">${escapeHtml(item.hint)}</span>`;
+        document.getElementById('deck-quiz-score').textContent = `${currentDeckQuiz.score} correct so far`;
+        document.getElementById('deck-quiz-next-area').classList.remove('hidden');
+        addXP(20);
+        return;
+      }
+
+      currentDeckQuiz.attempts++;
+      selectedButton.disabled = true;
+      selectedButton.classList.add('is-incorrect');
+      feedback.className = 'deck-quiz-feedback is-incorrect';
+      feedback.innerHTML = `<strong>Not quite—try another choice.</strong><span class="deck-quiz-hint">Hint: ${escapeHtml(item.hint)}</span>`;
+      if (currentDeckQuiz.attempts >= 2) {
+        feedback.innerHTML += `<button type="button" class="deck-quiz-reveal" onclick="revealDeckQuizAnswer()">Show answer and continue</button>`;
+      }
+      feedback.classList.remove('hidden');
+    }
+
+    function revealDeckQuizAnswer() {
+      if (currentDeckQuiz.answered) return;
+      const item = currentDeckQuiz.questions[currentDeckQuiz.index];
+      currentDeckQuiz.answered = true;
+      const feedback = document.getElementById('deck-quiz-feedback');
+      feedback.className = 'deck-quiz-feedback is-revealed';
+      feedback.innerHTML = `<strong>The answer is ${escapeHtml(item.correctAnswer)}.</strong><span>${escapeHtml(item.explanation)}</span>`;
+      document.querySelectorAll('.deck-quiz-option').forEach(button => { button.disabled = true; });
+      document.getElementById('deck-quiz-next-area').classList.remove('hidden');
+    }
+
+    function advanceDeckQuiz() {
+      currentDeckQuiz.index++;
+      renderDeckQuizQuestion();
     }
 
     function setLibraryFilter(filter, button) {
@@ -1809,16 +1993,16 @@
     function switchTab(tabName) {
       stopSpeech();
       closeAiModal();
-      const pages = ['dashboard', 'generator', 'study', 'quiz', 'library', 'weak-spots', 'profile'];
+      const pages = ['dashboard', 'generator', 'study', 'quiz', 'library', 'deck-quiz', 'weak-spots', 'profile'];
       pages.forEach(page => document.getElementById(`tab-${page}`)?.classList.toggle('hidden', page !== tabName));
 
       const selectedNav = tabName === 'quiz' ? 'weak-spots' : tabName;
-      ['dashboard', 'generator', 'library', 'weak-spots', 'profile'].forEach(nav => {
+      ['dashboard', 'generator', 'library', 'deck-quiz', 'weak-spots', 'profile'].forEach(nav => {
         document.getElementById(`nav-${nav}`)?.classList.toggle('is-active', nav === selectedNav);
       });
       const titles = {
         dashboard: 'Today', generator: 'Create a deck', study: 'Study session',
-        quiz: 'Focused quiz', library: 'Library', 'weak-spots': 'Weak spots', profile: 'Profile'
+        quiz: 'Focused quiz', library: 'Library', 'deck-quiz': 'Quiz yourself', 'weak-spots': 'Weak spots', profile: 'Profile'
       };
       safeSetText('page-title', titles[tabName] || 'Today');
 
@@ -1827,6 +2011,8 @@
         renderSavedDecksList();
       } else if (tabName === 'library') {
         renderLibrary();
+      } else if (tabName === 'deck-quiz') {
+        renderDeckQuizDeckOptions();
       } else if (tabName === 'weak-spots') {
         renderWeakSpots();
       } else if (tabName === 'profile') {

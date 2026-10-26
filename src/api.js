@@ -6,6 +6,7 @@ import { PDFParse } from 'pdf-parse';
 import OpenAI from 'openai';
 import { generateFlashcards } from './flashcards.js';
 import { calculateReviewSchedule } from './srs.js';
+import { validateDeckQuiz } from './deck-quiz.js';
 
 const router = express.Router();
 const upload = multer({
@@ -424,6 +425,66 @@ router.delete('/decks/:deckId', async (req, res) => {
   const { error } = await req.db.from('synapse_decks').delete().eq('id', req.params.deckId);
   if (error) return sendDatabaseError(res, error);
   return res.json({ success: true });
+});
+
+router.post('/decks/:deckId/quiz', async (req, res) => {
+  if (!/^[0-9a-f-]{36}$/i.test(req.params.deckId)) {
+    return res.status(400).json({ error: 'A valid deck ID is required.' });
+  }
+
+  try {
+    const { data: deck, error: deckError } = await req.db
+      .from('synapse_decks')
+      .select('id, title, source_detail')
+      .eq('id', req.params.deckId)
+      .maybeSingle();
+    if (deckError) return sendDatabaseError(res, deckError);
+    if (!deck) return res.status(404).json({ error: 'Study deck not found.' });
+
+    const { data: cards, error: cardsError } = await req.db
+      .from('synapse_cards')
+      .select('id, question, answer')
+      .eq('deck_id', deck.id);
+    if (cardsError) return sendDatabaseError(res, cardsError);
+    if (!cards?.length) return res.status(422).json({ error: 'This deck does not have any cards to quiz from.' });
+
+    const concepts = [...cards]
+      .sort(() => Math.random() - 0.5)
+      .slice(0, Math.min(5, cards.length))
+      .map(card => ({ sourceCardId: card.id, question: card.question, answer: card.answer }));
+    const response = await getAiClient().chat.completions.create({
+      model: getModel(),
+      reasoning_effort: 'none',
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'system',
+          content: 'Create source-grounded multiple-choice study questions. Return valid JSON only as an object with a "questions" array. For each item include sourceCardId copied exactly from its source, question, exactly four distinct options, correctAnswer exactly matching one option, a helpful hint that guides without stating the answer, and a concise explanation. Do not introduce facts that are not in the source cards.'
+        },
+        {
+          role: 'user',
+          content: `Create one clear multiple-choice question for each of these source cards. Keep each question answerable using only its source card. \n${JSON.stringify(concepts)}`
+        }
+      ],
+      temperature: 0.2,
+      max_tokens: 1800
+    }, { timeout: 20000 });
+
+    let generated;
+    try {
+      const parsed = JSON.parse(response.choices?.[0]?.message?.content || '');
+      generated = parsed.questions;
+    } catch {
+      throw new Error('The AI returned invalid quiz JSON.');
+    }
+    const questions = validateDeckQuiz(generated, concepts);
+
+    return res.json({ success: true, deck: { id: deck.id, title: deck.title, sourceDetail: deck.source_detail }, questions });
+  } catch (error) {
+    if (error?.status) return res.status(error.status).json({ error: error.message });
+    console.error('Deck quiz generation failed:', error?.message || 'Unknown error');
+    return res.status(502).json({ error: 'Could not build a source-grounded quiz for this deck. Please try again.' });
+  }
 });
 
 router.post('/explain', async (req, res) => {
