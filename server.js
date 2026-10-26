@@ -48,9 +48,10 @@ app.use((err, _req, res, _next) => {
   return res.status(500).json({ error: 'The request could not be completed.' });
 });
 
-if (process.env.NODE_ENV !== 'test') {
+if (process.env.NODE_ENV !== 'production') {
+  const port = process.env.PORT || 3000;
   app.listen(port, () => {
-    console.log(`Synapse AI is available at http://localhost:${port}`);
+    console.log(`Server running on http://localhost:${port}`);
   });
 }
 
