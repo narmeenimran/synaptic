@@ -36,7 +36,7 @@ test('generation requests structured JSON and accepts escaped card text', async 
   assert.equal(generated[0].question, cards[0].question);
 });
 
-test('generation retries once when the AI returns fewer than the requested cards', async t => {
+test('generation fills a partial batch by requesting only the missing cards', async t => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.NEBIUS_API_KEY;
   process.env.NEBIUS_API_KEY = 'test-key';
@@ -48,7 +48,7 @@ test('generation retries once when the AI returns fewer than the requested cards
 
   globalThis.fetch = async (_url, options) => {
     requestBodies.push(JSON.parse(options.body));
-    const responseCards = requestBodies.length === 1 ? cards.slice(0, 4) : cards;
+    const responseCards = requestBodies.length === 1 ? cards.slice(0, 4) : cards.slice(4);
     return new Response(JSON.stringify({
       choices: [{ message: { content: JSON.stringify({ cards: responseCards }) } }]
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -68,7 +68,8 @@ test('generation retries once when the AI returns fewer than the requested cards
 
   assert.equal(generated.length, 5);
   assert.equal(requestBodies.length, 2);
-  assert.match(requestBodies[1].messages[1].content, /previous attempt did not return exactly 5 valid cards/i);
+  assert.match(requestBodies[1].messages[1].content, /Create exactly 5 new flashcards/);
+  assert.match(requestBodies[1].messages[1].content, /Question 1/);
 });
 
 test('generation validates material, card-count, and search boundaries before calling AI', async t => {
@@ -106,14 +107,16 @@ test('generation accepts 30 and 100,000 character inputs and all supported card 
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.NEBIUS_API_KEY;
   process.env.NEBIUS_API_KEY = 'test-key';
+  let nextQuestion = 1;
   globalThis.fetch = async (_url, options) => {
     const body = JSON.parse(options.body);
-    const match = body.messages[1].content.match(/Create exactly (\d+) distinct/);
+    const match = body.messages[1].content.match(/Create exactly (\d+) (?:distinct|new)/);
     const count = Number(match[1]);
     const cards = Array.from({ length: count }, (_, index) => ({
-      question: `Question ${index + 1}`,
-      answer: `Answer ${index + 1}`
+      question: `Question ${nextQuestion + index}`,
+      answer: `Answer ${nextQuestion + index}`
     }));
+    nextQuestion += count;
     return new Response(JSON.stringify({
       choices: [{ message: { content: JSON.stringify({ cards }) } }]
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -133,7 +136,47 @@ test('generation accepts 30 and 100,000 character inputs and all supported card 
   }
 });
 
-test('generation rejects malformed structured JSON with a useful message', async t => {
+test('generation continues until a 20-card deck is full when the AI under-delivers each batch', async t => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.NEBIUS_API_KEY;
+  process.env.NEBIUS_API_KEY = 'test-key';
+  const requestedCounts = [];
+  let nextConcept = 1;
+  globalThis.fetch = async (_url, options) => {
+    const body = JSON.parse(options.body);
+    const requested = Number(body.messages[1].content.match(/Create exactly (\d+) (?:distinct|new)/)[1]);
+    requestedCounts.push(requested);
+    const generated = Math.min(2, requested);
+    const cards = Array.from({ length: generated }, (_, index) => ({
+      question: `Unique concept ${nextConcept + index}`,
+      answer: `Answer ${nextConcept + index}`
+    }));
+    nextConcept += generated;
+    return new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({ cards }) } }]
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.NEBIUS_API_KEY;
+    else process.env.NEBIUS_API_KEY = originalApiKey;
+  });
+
+  const cards = await generateFlashcards(
+    'ATP stores energy for cellular processes, and it can transfer a phosphate group to other molecules.',
+    false,
+    20
+  );
+
+  assert.equal(cards.length, 20);
+  assert.equal(new Set(cards.map(card => card.question)).size, 20);
+  assert.ok(requestedCounts.length > 4);
+  assert.equal(requestedCounts[0], 5);
+  assert.ok(requestedCounts.every(count => count >= 1 && count <= 5));
+});
+
+test('generation reports a clear error after repeated invalid AI batches', async t => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.NEBIUS_API_KEY;
   process.env.NEBIUS_API_KEY = 'test-key';
@@ -157,7 +200,7 @@ test('generation rejects malformed structured JSON with a useful message', async
       false,
       5
     ),
-    /Could not validate AI flashcards after one retry:/
+    /AI repeatedly returned incomplete flashcards\. 0 of 5 were generated/
   );
-  assert.equal(fetchCalls, 2);
+  assert.equal(fetchCalls, 5);
 });

@@ -1,40 +1,98 @@
 # Synaptic
 
-Synaptic is an AI-assisted spaced-repetition workspace. It turns text-based PDFs into flashcards, schedules reviews, records confidence, and generates focused quizzes from cards that need more practice.
+Synaptic is an AI-assisted study workspace designed to transform text-based PDFs into active-recall flashcards, automate spaced repetition scheduling, and power adaptive study quizzes grounded directly in your saved study material.
 
-## Run locally
+# Core Capabilities
 
-1. Install the dependencies with `npm install`.
-2. Copy `.env.example` to `.env` and fill in the Supabase URL/public anon key, Nebius API key, and (optionally) Tavily API key.
-3. In the Supabase SQL Editor, run [`supabase/migrations/202610260001_synapse_study_workspace.sql`](./supabase/migrations/202610260001_synapse_study_workspace.sql), then [`supabase/migrations/202610260002_synapse_starter_decks.sql`](./supabase/migrations/202610260002_synapse_starter_decks.sql), and [`supabase/migrations/202610260003_synaptic_avatars.sql`](./supabase/migrations/202610260003_synaptic_avatars.sql).
-4. Enable email/password sign-in in Supabase Authentication.
-5. Start the app with `npm start` and open `http://localhost:3000`.
+1. Automated PDF Parsing & Deck Generation: Upload text-based PDFs (up to 10 MB, processed entirely in memory without server storage) to instantly generate custom 5, 10, 15, or 20-card flashcard decks.
 
-The anon key is public client configuration; Nebius and Tavily keys stay server-side. Never put a Supabase service-role key in the browser or commit `.env`.
+2. Resilient AI Batching: Flashcards are requested in targeted micro-batches. Deduplication and schema validation ensure incomplete or malformed cards are automatically replaced before finalizing a deck.
 
-## Study workflow
+3. Cognitive Spaced Repetition (SRS): Study active due cards or restart full deck reviews using standard SuperMemo-based confidence ratings (Again, Hard, Good, Easy).
 
-- Create a deck from a text-based PDF. PDF uploads are processed in memory and are not stored.
-- New accounts start with three sample decks (Biology: Cell Basics, AI: Uses and Benefits, and Space: Our Solar System), containing 5, 10, and 15 original practice cards. Existing accounts with decks are not changed.
-- Upload a JPG or PNG up to 5 MB as a profile avatar; images are stored in the user's own Supabase Storage folder.
-- Reopen any saved deck from the dashboard or library and study all its cards again at any time, whether or not they are currently due.
-- Review due cards and rate recall as Again, Hard, Good, or Easy.
-- Review history and card schedules are stored per account; row-level security protects each user's profile, decks, cards, and reviews.
-- Open concise AI explanations in a docked side panel while keeping the current study card visible.
-- Build a separate multiple-choice quiz from a saved deck. Each question is tied to one of that deck's source flashcards; wrong answers show a hint and allow another try.
-- Use the Weak Spots view to revisit low-mastery cards and generate a short AI quiz.
-- Use live research only when Tavily is configured; AI explanations and card generation require Nebius.
+4. Grounded Multiple-Choice Quizzes: Practice with dynamically generated 5-question quizzes built directly from deck content. Includes step-by-step hints for incorrect choices and direct source-card attribution.
 
-The Supabase migration is required before signing in to the study workspace. If an integration key is missing or a provider is unavailable, the app reports that explicitly instead of pretending the feature succeeded.
+5. Weakness Hunter Quizzes: Generate targeted mini-quizzes from up to three low-confidence cards to reinforce problem areas.
 
-## AI generation troubleshooting
+6. Interactive AI Assistant & Streaming Explanations: Access low-latency AI explanations and contextual follow-up guidance in an interactive side panel.
 
-- Keep the terminal running `npm start` open while generating cards; provider diagnostics are written there.
-- If the AI returns malformed or fewer cards than requested, generation automatically retries once before reporting a validation error.
-- If generation is rejected, the app reports common Nebius causes such as an invalid key, unavailable model, rate limit, or oversized request. Check the terminal for the provider's status and error detail, but never share or publish `.env` values.
-- After changing `.env`, restart the server. If a request fails with HTTP 400, try shorter study material or a smaller card count.
+7. Real-Time Web Context (Tavily Integration): Optionally incorporate live web search context during deck creation or card verification to supplement static source material.
 
-## Checks
+8. Speech Recognition & Text-to-Speech: Review cards using built-in text-to-speech audio or speak answers aloud via browser speech recognition for active recall.
 
-- `npm test` runs the focused quiz-validation and spaced-repetition tests.
-- `node --check server.js` and `node --check src/api.js` validate server JavaScript syntax.
+9. Data Mobility: Export complete card decks to standard CSV format at any time.
+
+10. Gamification & Profile Customization: Track total card reviews, earn XP, unlock level milestones, and upload custom profile avatars (PNG/JPG up to 5 MB).
+
+# Environment Requirements
+
+Node.js (v18+) and npm
+
+A Supabase project with Email/Password authentication enabled
+
+A Nebius API key (powering AI card generation, adaptive quizzes, and side-panel explanations)
+
+A Tavily API key (optional; required only for real-time web verification features)
+
+# Local Setup
+
+Install dependencies:
+
+npm install
+
+
+Configure Environment Variables:
+Create a .env file in the project root:
+
+PORT=3000
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_ANON_KEY=your-supabase-anon-key
+NEBIUS_API_KEY=your-nebius-api-key
+
+# Configuration Defaults:
+# NEBIUS_BASE_URL=https://api.tokenfactory.nebius.com/v1/
+# NEBIUS_MODEL=nvidia/Nemotron-3_5-Lightning
+# TAVILY_API_KEY=your-tavily-api-key
+
+
+Note: SUPABASE_PUBLISHABLE_KEY may be used in place of SUPABASE_ANON_KEY. Keep secret provider keys securely stored in your server-side environment.
+
+Database & Storage Migrations:
+Apply the following SQL files in sequence inside your Supabase SQL Editor:
+
+supabase/migrations/202610260001_synapse_study_workspace.sql — Establishes user profiles, decks, cards, review logs, and Row-Level Security (RLS) policies.
+
+supabase/migrations/202610260002_synapse_starter_decks.sql — Initializes starter deck tracking flags.
+
+supabase/migrations/202610260003_synaptic_avatars.sql — Configures the avatar Storage bucket and access permissions.
+
+Newly created accounts automatically receive three curated starter decks (Cell Biology, AI Applications, and Solar System Astronomy). Custom profile avatar uploads are isolated securely to each authenticated user's bucket folder.
+
+Authentication Setup:
+Enabling Email/Password authentication within your Supabase dashboard is optional. Configure email confirmation requirements according to your project settings.
+
+Launch the Application:
+
+npm start
+
+
+Access the workspace locally at http://localhost:3000.
+
+Automated Testing
+
+Execute the native Node.js test suite:
+
+npm test
+
+
+The test suite validates flashcard generation boundaries, quiz schema validation, starter deck seeding routines, and SRS scheduling algorithms. (Note: Unit tests operate independently of live Supabase database connections or external AI service availability).
+
+Deployment
+
+Synaptic includes a pre-configured vercel.json file for serverless deployment on Vercel. Ensure all environment variables are properly populated in your cloud dashboard, database migrations are applied to production Supabase, and authentication and storage permissions are thoroughly verified post-deployment.
+
+# License
+
+Distributed under the Mozilla Public License 2.0. See `LICENSE` for more details.
+
+Thank you for checking out Synaptic. I hope this workspace makes your learning and study sessions effortless!

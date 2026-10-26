@@ -11,21 +11,14 @@ function extractCards(content) {
   return cards;
 }
 
-function validateCards(cards, count) {
-  if (!Array.isArray(cards) || cards.length !== count) {
-    throw new Error(`The AI returned an unexpected number of cards. Please try generating ${count} cards again.`);
-  }
-
-  return cards.map((card, index) => {
-    if (typeof card?.question !== 'string' || typeof card?.answer !== 'string') {
-      throw new Error(`Flashcard ${index + 1} is missing its question or answer.`);
-    }
+function validateCards(cards) {
+  if (!Array.isArray(cards)) throw new Error('The AI response did not contain a flashcard list.');
+  return cards.flatMap(card => {
+    if (typeof card?.question !== 'string' || typeof card?.answer !== 'string') return [];
     const question = card.question.trim();
     const answer = card.answer.trim();
-    if (!question || !answer || question.length > 2000 || answer.length > 4000) {
-      throw new Error(`Flashcard ${index + 1} has invalid content.`);
-    }
-    return { question, answer };
+    if (!question || !answer || question.length > 2000 || answer.length > 4000) return [];
+    return [{ question, answer }];
   });
 }
 
@@ -102,10 +95,63 @@ export async function generateFlashcards(lectureContent, enableSearch = false, c
   }
 
   const searchContext = enableSearch ? await searchContextFor(lectureContent) : '';
-  return requestFlashcards(lectureContent, Number(cardCount), searchContext, 0);
+  const count = Number(cardCount);
+  const cards = [];
+  const questions = new Set();
+
+  while (cards.length < count) {
+    const batchCount = Math.min(5, count - cards.length);
+    const batchEnd = cards.length + batchCount;
+    let consecutiveEmptyResponses = 0;
+    let batchAttempts = 0;
+
+    while (cards.length < batchEnd && batchAttempts < 8 && consecutiveEmptyResponses < 5) {
+      const remaining = batchEnd - cards.length;
+      const requestedCandidates = Math.max(5, remaining);
+      batchAttempts++;
+      const candidates = await requestFlashcardBatch(
+        lectureContent,
+        requestedCandidates,
+        searchContext,
+        cards
+      );
+      const freshCards = [];
+      for (const card of candidates) {
+        if (freshCards.length >= remaining) break;
+        const key = card.question.toLocaleLowerCase();
+        if (questions.has(key)) continue;
+        questions.add(key);
+        freshCards.push(card);
+      }
+
+      if (!freshCards.length) {
+        consecutiveEmptyResponses++;
+        console.warn(`AI returned no new valid flashcards; retrying the remaining ${remaining} card(s).`);
+        continue;
+      }
+
+      consecutiveEmptyResponses = 0;
+      cards.push(...freshCards);
+    }
+
+    if (cards.length < batchEnd && batchAttempts >= 8) {
+      throw Object.assign(
+        new Error(`The AI could not complete the requested ${count} flashcards after several attempts. Please try again or use shorter study material.`),
+        { status: 502 }
+      );
+    }
+    if (cards.length < batchEnd && consecutiveEmptyResponses >= 5) {
+      throw Object.assign(
+        new Error(`The AI repeatedly returned incomplete flashcards. ${cards.length} of ${count} were generated; please try again or use shorter study material.`),
+        { status: 502 }
+      );
+    }
+  }
+
+  return cards;
 }
 
-async function requestFlashcards(lectureContent, cardCount, searchContext, attempt) {
+async function requestFlashcardBatch(lectureContent, cardCount, searchContext, previousCards) {
   const model = process.env.NEBIUS_MODEL || DEFAULT_MODEL;
   const baseUrl = (process.env.NEBIUS_BASE_URL || NEBIUS_BASE_URL).replace(/\/+$/, '');
   let response;
@@ -124,14 +170,14 @@ async function requestFlashcards(lectureContent, cardCount, searchContext, attem
         messages: [
           {
             role: 'system',
-            content: 'Create accurate active-recall flashcards from the provided study material. Return valid JSON only, as an object with a "cards" array containing exactly the requested number of cards. Count the cards before responding. Each card must contain only string "question" and "answer" fields. Keep the cards concise and distinct. Escape quotation marks and special characters correctly in JSON strings.'
+            content: 'Create accurate active-recall flashcards grounded only in the provided study material. Return valid JSON only, as an object with a "cards" array. Each card must contain only string "question" and "answer" fields. Every card must test a different fact or relationship, and must not repeat the facts or questions in the prior cards provided by the user. Choose uncovered facts from other parts of the source; if necessary, test a distinct implication or contrast that is directly supported by the material. Keep cards concise and escape JSON strings correctly.'
           },
           {
             role: 'user',
-            content: `${attempt > 0 ? `The previous attempt did not return exactly ${Number(cardCount)} valid cards. Regenerate the complete set and ensure the cards array contains exactly ${Number(cardCount)} items. ` : ''}Create exactly ${Number(cardCount)} distinct, useful flashcards. Favor concise questions and answers. Do not invent claims unsupported by the material.\n${searchContext ? `Use this additional web context only when relevant:\n${searchContext}\n` : ''}Study material:\n${lectureContent.trim()}`
+            content: `Create exactly ${cardCount} new flashcards in this batch. The following complete cards already exist; do not repeat their questions or test the same facts: ${JSON.stringify(previousCards)}. Favor concise questions and answers. Do not invent claims unsupported by the material.\n${searchContext ? `Use this additional web context only when relevant:\n${searchContext}\n` : ''}Study material:\n${lectureContent.trim()}`
           }
         ],
-        temperature: 0.2,
+        temperature: 0.5,
         max_tokens: Math.min(5000, cardCount * 300)
       })
     });
@@ -147,21 +193,11 @@ async function requestFlashcards(lectureContent, cardCount, searchContext, attem
 
   const result = await response.json();
   const content = result.choices?.[0]?.message?.content;
-  if (typeof content !== 'string') {
-    if (attempt === 0) {
-      console.warn('AI flashcard output was empty; retrying once.');
-      return requestFlashcards(lectureContent, cardCount, searchContext, attempt + 1);
-    }
-    throw Object.assign(new Error('The AI returned an empty response.'), { status: 502 });
-  }
-
   try {
-    return validateCards(extractCards(content), cardCount);
+    if (typeof content !== 'string') throw new Error('The AI returned an empty response.');
+    return validateCards(extractCards(content)).slice(0, cardCount);
   } catch (error) {
-    if (attempt === 0) {
-      console.warn('AI flashcard output did not validate; retrying once:', error.message);
-      return requestFlashcards(lectureContent, cardCount, searchContext, attempt + 1);
-    }
-    throw Object.assign(new Error(`Could not validate AI flashcards after one retry: ${error.message}`), { status: 502 });
+    console.warn(`AI flashcard batch did not validate (${cardCount} requested):`, error.message);
+    return [];
   }
 }

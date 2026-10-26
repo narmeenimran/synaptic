@@ -1714,6 +1714,7 @@
             <div class="deck-actions">
               <button onclick="startStudySession(${index}, true)">Study all</button>
               <button onclick="startStudySession(${index})">${dueCount ? `Study ${dueCount} due` : 'No cards due'}</button>
+              <button onclick="exportDeckToCSV(${index})">Export</button>
             </div>
           </div>
         `;
