@@ -3,14 +3,16 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Synapse AI - Personalized Study App</title>
+  <title>Synapse — Learn deeply. Remember naturally.</title>
   
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-  
+  <link rel="icon" type="image/svg+xml" href="/synapse-mark.svg">
+  <link rel="stylesheet" href="/app.css">
+  <script src="/vendor/supabase.js" defer></script>
+
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Canvas Confetti CDN for Gamification Celebration -->
   <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
   
   <script>
@@ -22,7 +24,7 @@
           },
           colors: {
             border: '#e2e8f0',
-            background: '#f8fafc',
+            background: '#FAF9F6',
             foreground: '#0f172a',
           }
         }
@@ -30,77 +32,171 @@
     }
   </script>
   <style>
-    body { font-family: 'Inter', sans-serif; }
+    body { font-family: 'Inter', sans-serif; background-color: #FAF9F6; }
     .perspective-1000 { perspective: 1000px; }
     .transform-style-3d { transform-style: preserve-3d; }
     .backface-hidden { backface-visibility: hidden; }
     .rotate-y-180 { transform: rotateY(180deg); }
   </style>
 </head>
-<body class="bg-background text-foreground min-h-screen flex flex-col justify-between antialiased selection:bg-teal-100 selection:text-teal-900">
+<body class="bg-[#FAF9F6] text-slate-900 min-h-screen flex flex-col justify-between antialiased selection:bg-teal-100 selection:text-teal-900">
 
   <!-- FLOATING CUSTOM APP TOAST NOTIFICATION CONTAINER -->
   <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col space-y-2 pointer-events-none"></div>
 
-  <!-- ONBOARDING PAGE -->
-  <div id="auth-page" class="fixed inset-0 bg-[#f8fafc] z-50 flex flex-col justify-between">
-    <header class="w-full px-8 py-5 flex items-center justify-between border-b border-slate-200/80 bg-white">
-      <div class="flex items-center space-x-3">
-        <div class="bg-teal-600 text-white p-2 rounded-xl font-bold text-lg flex items-center justify-center w-9 h-9 shadow-xs">⚡</div>
-        <span class="text-xl font-extrabold text-teal-600 tracking-tight">Synapse AI</span>
-      </div>
-      <button onclick="handleSignOut()" class="text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 border border-red-100 px-4 py-1.5 rounded-full transition-all">Log out</button>
+  <div id="landing-page" class="landing-page">
+    <header class="landing-header">
+      <a href="/" class="brand-lockup" aria-label="Synapse home">
+        <img src="/synapse-mark.svg" alt="" class="brand-mark">
+        <span>synapse</span>
+      </a>
+      <nav class="landing-nav" aria-label="Main navigation">
+        <a href="#landing-method">Method</a>
+        <a href="#landing-workspace">Workspace</a>
+        <a href="#landing-focus">Focus mode</a>
+        <button onclick="openAuth('signin')" class="landing-login">Open workspace <span aria-hidden="true">→</span></button>
+      </nav>
     </header>
 
-    <div class="flex-1 grid grid-cols-1 md:grid-cols-2 max-w-7xl w-full mx-auto my-auto items-center">
-      <div class="p-8 md:p-16 space-y-4">
-        <span class="text-[11px] font-extrabold uppercase tracking-widest text-teal-600">Account Set Up</span>
-        <h1 class="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">Just a few questions</h1>
-        <p class="text-sm text-slate-500 max-w-md leading-relaxed">Your answers help us set up the right AI study tools and recommendations from day one. Just a few quick details.</p>
-      </div>
-
-      <div class="p-8 md:p-16 flex flex-col justify-center items-center">
-        <div class="w-full max-w-sm space-y-6 bg-white p-8 rounded-2xl border border-slate-200/80 shadow-[0_4px_25px_rgba(0,0,0,0.03)]">
-          <div class="text-center space-y-1">
-            <h2 class="text-xl font-bold text-slate-900">Account Details</h2>
-            <p id="onboarding-email-display" class="text-xs text-slate-500">Creating account for <span class="font-medium text-slate-800" id="user-email-tag">user@domain.com</span></p>
+    <main>
+      <section class="landing-hero">
+        <div class="landing-copy">
+          <p class="landing-eyebrow"><span></span> AI-POWERED SPACED REPETITION</p>
+          <h1>Learn deeply.<br><em>Remember</em><br>naturally.</h1>
+          <p class="landing-description">Synapse turns your PDFs into a living study system. It finds the gaps, asks the right questions, and helps knowledge stick.</p>
+          <div class="landing-actions">
+            <button onclick="openAuth('signup')" class="landing-primary">Create your first deck <span aria-hidden="true">→</span></button>
+            <a href="#landing-workspace" class="landing-secondary">Explore the workspace</a>
           </div>
-
-          <div class="relative w-20 h-20 mx-auto text-center">
-            <div id="avatar-preview" class="w-20 h-20 rounded-full bg-teal-100 border-2 border-teal-500 flex items-center justify-center text-3xl shadow-xs overflow-hidden bg-cover bg-center">
-              <span id="avatar-emoji">👤</span>
-            </div>
-            <button onclick="openAvatarModal()" class="absolute bottom-0 right-0 bg-white border border-slate-200 p-1.5 rounded-full text-xs shadow-xs hover:bg-slate-50" title="Change Profile Picture">✏️</button>
-          </div>
-
-          <div class="space-y-4 text-left">
-            <div>
-              <label class="block text-xs font-semibold text-slate-800 mb-1">Full Name*</label>
-              <input type="text" id="setupFullName" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-500 focus:bg-white transition-all" placeholder="Enter full name">
-            </div>
-
-            <div>
-              <label class="block text-xs font-semibold text-slate-800 mb-1">Username*</label>
-              <input type="text" id="setupUsername" oninput="validateUsername()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-teal-500 focus:bg-white transition-all" placeholder="Choose a username">
-              <p id="username-error" class="hidden text-[11px] text-red-500 bg-red-50 p-2 rounded-lg mt-1 border border-red-100">⚠️ That username is taken, enter a different one</p>
-            </div>
-
-            <div>
-              <label class="block text-xs font-semibold text-slate-800 mb-1">Birthday*</label>
-              <input type="text" id="setupBirthday" readonly onclick="openCalendarModal()" class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 placeholder-slate-400 cursor-pointer focus:outline-none focus:ring-1 focus:ring-teal-500 focus:bg-white transition-all" placeholder="MM/DD/YYYY">
-            </div>
-
-            <button onclick="executeAuthRedirect()" id="completeSetupBtn" class="w-full bg-teal-600 hover:bg-teal-700 text-white font-semibold py-3 rounded-xl text-xs transition-all shadow-sm">
-              Next & Finish Setup →
-            </button>
-          </div>
+          <p class="landing-note">BUILT FOR CURIOUS MINDS <span>•</span> PDFS · SPACED REVIEWS · WEB RESEARCH</p>
         </div>
+
+        <div class="landing-visual" aria-label="Preview of a Synapse study card">
+          <div class="orbit orbit-one"></div>
+          <div class="orbit orbit-two"></div>
+          <div class="landing-card-back">
+            <span>ANSWER</span>
+            <p>Powering the cell with energy.</p>
+          </div>
+          <article class="landing-study-card">
+            <div class="study-card-top"><span>01 / 42</span><i></i></div>
+            <span class="study-card-label">QUESTION</span>
+            <p>What is the role of the mitochondria in a cell?</p>
+            <div class="study-card-bottom"><span>Biology · Cell Systems</span><span>ϟ<br>4 XP</span></div>
+          </article>
+          <div class="landing-float landing-generated"><span>✧</span> AI generated <strong>+42 cards</strong></div>
+          <div class="landing-float landing-streak"><span>♨</span><strong>7 day</strong> streak</div>
+        </div>
+      </section>
+
+      <section id="landing-method" class="landing-method">
+        <div class="landing-method-heading">
+          <p class="landing-eyebrow"><span></span> A BETTER WAY TO STUDY</p>
+          <h2>Not more hours.<br><em>More remembering.</em></h2>
+        </div>
+        <div class="landing-method-grid">
+          <article><span class="method-number">01</span><h3>Bring your material</h3><p>Start with a course handout, lecture slides, or any text-based PDF. Your study space begins with what you need to learn.</p></article>
+          <article id="landing-workspace"><span class="method-number">02</span><h3>Practice active recall</h3><p>Turn key concepts into clear prompts, then retrieve the answer before you reveal it.</p></article>
+          <article id="landing-focus"><span class="method-number">03</span><h3>Let memory set the pace</h3><p>Rate how well you remembered. Your next review is scheduled around what needs attention.</p></article>
+        </div>
+        <div class="landing-bottom-cta"><span>Small sessions. Stronger memory.</span><button onclick="openAuth('signup')" class="landing-primary">Start learning <span aria-hidden="true">→</span></button></div>
+      </section>
+    </main>
+    <footer class="landing-footer"><a href="/" class="brand-lockup"><img src="/synapse-mark.svg" alt="" class="brand-mark"><span>synapse</span></a><span>Built for curious minds.</span></footer>
+  </div>
+
+  <!-- COMMAND PALETTE MODAL (CMD + K / CTRL + K) -->
+  <div id="commandPalette" class="fixed inset-0 bg-slate-900/40 backdrop-blur-2xs hidden flex items-start justify-center pt-20 p-4 z-50">
+    <div class="bg-white border border-slate-200 rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden space-y-2 p-3">
+      <div class="flex items-center space-x-3 px-3 py-2 border-b border-slate-100">
+        <span class="text-slate-400">🔍</span>
+        <input type="text" id="cmdInput" oninput="filterCmdOptions()" placeholder="Type a command or deck name..." class="w-full text-xs text-slate-900 focus:outline-none bg-transparent">
+        <kbd class="text-[10px] bg-slate-100 border border-slate-200 px-1.5 py-0.5 rounded text-slate-500 font-mono">ESC</kbd>
+      </div>
+      <div id="cmdResults" class="max-h-60 overflow-y-auto space-y-1 p-1">
+        <button onclick="switchTab('dashboard'); closeCmdPalette();" class="cmd-item w-full text-left px-3 py-2 text-xs font-semibold hover:bg-slate-100 rounded-xl flex items-center justify-between">
+          <span>🏠 Go to Dashboard</span>
+          <span class="text-[10px] text-slate-400">View decks</span>
+        </button>
+        <button onclick="switchTab('generator'); closeCmdPalette();" class="cmd-item w-full text-left px-3 py-2 text-xs font-semibold hover:bg-slate-100 rounded-xl flex items-center justify-between">
+          <span>🚀 Create New Flashcard Deck</span>
+          <span class="text-[10px] text-slate-400">AI / PDF</span>
+        </button>
+        <button onclick="switchTab('library'); closeCmdPalette();" class="cmd-item w-full text-left px-3 py-2 text-xs font-semibold hover:bg-slate-100 rounded-xl">Open library</button>
+        <button onclick="startSmartReview(); closeCmdPalette();" class="cmd-item w-full text-left px-3 py-2 text-xs font-semibold hover:bg-slate-100 rounded-xl flex items-center justify-between">
+          <span>🔥 Start Smart Review Session</span>
+          <span class="text-[10px] text-slate-400">SRS due cards</span>
+        </button>
+        <button onclick="startWeaknessQuiz(); closeCmdPalette();" class="cmd-item w-full text-left px-3 py-2 text-xs font-semibold hover:bg-slate-100 rounded-xl flex items-center justify-between">
+          <span>🎯 Start Weakness Hunter Quiz</span>
+          <span class="text-[10px] text-slate-400">AI Test</span>
+        </button>
+        <button onclick="switchTab('weak-spots'); closeCmdPalette();" class="cmd-item w-full text-left px-3 py-2 text-xs font-semibold hover:bg-slate-100 rounded-xl">Open weak spots</button>
+        <button onclick="switchTab('profile'); closeCmdPalette();" class="cmd-item w-full text-left px-3 py-2 text-xs font-semibold hover:bg-slate-100 rounded-xl">Open profile</button>
+        <button onclick="handleSignOut(); closeCmdPalette();" class="cmd-item w-full text-left px-3 py-2 text-xs font-semibold text-red-700 hover:bg-red-50 rounded-xl">Sign out</button>
       </div>
     </div>
+  </div>
 
-    <footer class="w-full text-center py-4 text-xs text-slate-400 border-t border-slate-100 bg-white">
-      Synapse AI &bull; Powered by Supabase & Nebius Studio
-    </footer>
+  <div id="auth-page" class="auth-screen hidden">
+    <header class="auth-header">
+      <button onclick="showLanding()" class="brand-lockup auth-home-link" aria-label="Back to Synapse home">
+        <img src="/synapse-mark.svg" alt="" class="brand-mark">
+        <span>synapse</span>
+      </button>
+      <button id="auth-mode-toggle" onclick="toggleAuthMode()" class="auth-switch">Already have an account? <strong>Sign in</strong></button>
+    </header>
+
+    <main class="auth-layout">
+      <section class="auth-story">
+        <span class="eyebrow"><span class="status-dot"></span> AI-POWERED SPACED REPETITION</span>
+        <h1 id="auth-story-title">Learn deeply.<br><em>Remember</em><br>naturally.</h1>
+        <p id="auth-story-copy">Turn your PDFs into a living study system. Find the gaps, practice what matters, and make what you learn last.</p>
+        <div class="auth-proof"><span class="auth-proof-line"></span><span>PDFs · focused daily reviews</span></div>
+      </section>
+
+      <section class="auth-card">
+        <div id="auth-form-pane">
+          <p class="eyebrow">WELCOME TO SYNAPSE</p>
+          <h2 id="auth-form-title">Create your account</h2>
+          <p id="auth-form-copy" class="auth-card-copy">Your personal workspace for learning that sticks.</p>
+          <form class="auth-fields" onsubmit="submitAuthentication(event)">
+            <label for="auth-email">Email address</label>
+            <input id="auth-email" type="email" autocomplete="email" required placeholder="you@example.com">
+            <label for="auth-password">Password</label>
+            <input id="auth-password" type="password" autocomplete="new-password" required minlength="8" placeholder="At least 8 characters">
+            <p id="auth-error" class="auth-error hidden" role="alert"></p>
+            <button id="auth-submit" type="submit" class="button-primary auth-submit">Create account <span aria-hidden="true">→</span></button>
+          </form>
+          <p class="auth-legal">By continuing, you agree to keep your learning space yours.</p>
+        </div>
+
+        <div id="profile-setup-pane" class="hidden">
+          <p class="eyebrow">ONE LAST THING</p>
+          <h2>Make it yours</h2>
+          <p class="auth-card-copy">A few details help personalize your workspace.</p>
+          <p id="onboarding-email-display" class="profile-email">Creating account for <span id="user-email-tag"></span></p>
+          <div class="profile-avatar-row">
+            <div id="avatar-preview" class="profile-avatar"><span id="avatar-emoji">👤</span></div>
+            <button onclick="openAvatarModal()" class="button-secondary">Choose avatar</button>
+          </div>
+          <div class="auth-fields">
+            <label for="setupFullName">Name</label>
+            <input type="text" id="setupFullName" maxlength="80" autocomplete="name" placeholder="What should we call you?">
+            <label for="setupUsername">Username</label>
+            <input type="text" id="setupUsername" maxlength="24" autocomplete="username" oninput="validateUsername()" placeholder="e.g. alex_studies">
+            <p id="username-error" class="auth-error hidden" role="alert"></p>
+            <label for="setupBirthday">Birthday <span class="optional-label">optional</span></label>
+            <input type="date" id="setupBirthday">
+            <p id="profile-error" class="auth-error hidden" role="alert"></p>
+            <button onclick="executeAuthRedirect()" id="completeSetupBtn" class="button-primary auth-submit">Open my workspace <span aria-hidden="true">→</span></button>
+            <button onclick="handleSignOut()" class="auth-switch">Not you? Sign out</button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="auth-footer"><span>Synapse AI</span><span>Built for curious minds.</span></footer>
   </div>
 
   <!-- AVATAR SELECTION MODAL -->
@@ -165,33 +261,43 @@
   </div>
 
   <!-- MAIN APP DASHBOARD WRAPPER -->
-  <div id="main-app" class="hidden min-h-screen flex flex-col md:flex-row bg-[#f8fafc]">
+  <div id="main-app" class="hidden min-h-screen flex flex-col md:flex-row bg-[#FAF9F6]">
 
     <!-- SIDEBAR DOCK -->
     <aside class="w-full md:w-64 bg-white border-r border-slate-200 p-5 flex flex-col justify-between shrink-0">
       <div class="space-y-6">
         <!-- Logo Header -->
         <div class="flex items-center space-x-3 px-1">
-          <div class="bg-teal-600 text-white p-2 rounded-xl font-bold text-sm flex items-center justify-center w-8 h-8 shadow-xs">⚡</div>
+          <img src="/synapse-mark.svg" alt="" class="brand-mark">
           <div>
-            <h1 class="text-xs font-extrabold tracking-tight text-slate-900">Synapse AI</h1>
+            <h1 class="text-xs font-extrabold tracking-tight text-slate-900">synapse<span class="brand-ai">.ai</span></h1>
             <p class="text-[10px] text-teal-600 font-semibold">Active Workspace</p>
           </div>
         </div>
 
         <!-- Navigation Links -->
         <nav class="space-y-1">
-          <button onclick="switchTab('dashboard')" id="nav-dashboard" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-900 transition-all text-left">
+          <button onclick="switchTab('dashboard')" id="nav-dashboard" class="app-nav-button is-active">
             <span>🏠</span> <span>Dashboard</span>
           </button>
-          <button onclick="switchTab('generator')" id="nav-generator" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all text-left">
+          <button onclick="switchTab('generator')" id="nav-generator" class="app-nav-button">
             <span>🚀</span> <span>+ Create New Deck</span>
           </button>
-          <button onclick="startSmartReview()" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all text-left">
-            <span>🔥</span> <span>Smart Review Due</span>
+          <button onclick="switchTab('library')" id="nav-library" class="app-nav-button">
+            <span>▤</span> <span>Library</span>
           </button>
-          <button onclick="startWeaknessQuiz()" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all text-left">
-            <span>🎯</span> <span>Weakness Hunter Quiz</span>
+          <button onclick="startSmartReview()" class="w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all text-left">
+            <span>◷</span> <span>Study due cards</span>
+          </button>
+          <button onclick="switchTab('weak-spots')" id="nav-weak-spots" class="app-nav-button">
+            <span>⌁</span> <span>Weak spots</span>
+          </button>
+          <button onclick="switchTab('profile')" id="nav-profile" class="app-nav-button">
+            <span>◉</span> <span>Profile</span>
+          </button>
+          <button onclick="openCmdPalette()" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-medium text-slate-500 hover:bg-slate-50 hover:text-slate-900 transition-all text-left">
+            <span class="flex items-center space-x-3"><span>🔍</span> <span>Quick Command</span></span>
+            <kbd class="text-[9px] bg-slate-100 border border-slate-200 px-1 py-0.5 rounded font-mono text-slate-400">⌘K</kbd>
           </button>
         </nav>
       </div>
@@ -225,36 +331,58 @@
     </aside>
 
     <!-- MAIN CONTENT VIEW -->
-    <main class="flex-1 p-6 md:p-10 overflow-y-auto max-w-5xl mx-auto w-full">
+    <main class="app-main flex-1 p-6 md:p-10 overflow-y-auto max-w-5xl mx-auto w-full">
+      <header class="app-topbar">
+        <div>
+          <p class="eyebrow">YOUR LEARNING SPACE</p>
+          <h1 id="page-title">Today</h1>
+        </div>
+        <div class="topbar-actions">
+          <button onclick="openCmdPalette()" class="topbar-search"><span>⌕</span><span>Search or jump to...</span><kbd>Ctrl K</kbd></button>
+          <button onclick="switchTab('generator')" class="button-primary topbar-create"><span>＋</span> New deck</button>
+        </div>
+      </header>
 
       <!-- DASHBOARD TAB -->
       <section id="tab-dashboard" class="space-y-6">
         <!-- Personalized Greeting Banner -->
-        <div class="bg-gradient-to-r from-teal-600 to-teal-700 text-white p-6 md:p-8 rounded-2xl shadow-sm space-y-2 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div class="dashboard-focus">
           <div class="space-y-1">
-            <span class="text-[10px] uppercase tracking-widest font-extrabold bg-teal-800/60 px-2.5 py-1 rounded-md">Gamified Study Mode</span>
+            <span class="eyebrow">YOUR NEXT BEST STEP</span>
             <h2 id="greeting-banner-title" class="text-2xl font-extrabold tracking-tight">Good day, Student 👋</h2>
-            <p class="text-xs text-teal-100 max-w-md">Complete study reviews, earn XP, maintain your streak, and level up your memory!</p>
+            <p class="text-xs text-slate-500 max-w-md">Small, focused reviews build durable knowledge. Pick up where your memory needs you most.</p>
           </div>
-          <button onclick="startSmartReview()" class="bg-white text-teal-900 hover:bg-teal-50 font-bold text-xs px-5 py-3 rounded-xl transition-all shadow-md shrink-0">
-            Start Review Session 🔥
+          <button onclick="startSmartReview()" class="button-primary shrink-0">
+            Review due cards <span aria-hidden="true">→</span>
           </button>
         </div>
 
         <!-- Metrics Grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
           <div class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-[0_2px_10px_rgba(0,0,0,0.02)] space-y-1">
-            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Total Saved Decks</p>
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Study decks</p>
             <p id="stat-decks" class="text-2xl font-extrabold text-slate-900">0</p>
           </div>
           <div class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-[0_2px_10px_rgba(0,0,0,0.02)] space-y-1">
-            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Flashcards Reviewed</p>
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Reviews completed</p>
             <p id="stat-reviews" class="text-2xl font-extrabold text-slate-900">0</p>
           </div>
           <div class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-[0_2px_10px_rgba(0,0,0,0.02)] space-y-1">
-            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Average Confidence</p>
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Recall confidence</p>
             <p id="stat-confidence" class="text-2xl font-extrabold text-slate-900">0%</p>
           </div>
+          <div class="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-[0_2px_10px_rgba(0,0,0,0.02)] space-y-1">
+            <p class="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Study streak</p>
+            <p id="stat-streak" class="text-2xl font-extrabold text-slate-900">0 days</p>
+          </div>
+        </div>
+
+        <div class="weekly-activity-panel">
+          <div class="weekly-activity-head">
+            <div><h3>This week</h3><p>Consistency compounds.</p></div>
+            <span id="due-card-count">0 cards due</span>
+          </div>
+          <div id="weekly-activity" class="weekly-activity" aria-label="Reviews completed over the last seven days"></div>
         </div>
 
         <!-- Saved Decks Section -->
@@ -265,9 +393,53 @@
           </div>
           <div id="saved-decks-list" class="space-y-3">
             <div class="text-center py-12 text-xs text-slate-400 border border-dashed border-slate-200 rounded-2xl">
-              No decks generated yet. Click "+ Create New Deck" to get started!
+              No decks yet. Use “New deck” to upload your first study document.
             </div>
           </div>
+        </div>
+      </section>
+
+      <section id="tab-library" class="hidden space-y-5">
+        <div class="page-intro">
+          <div><h2>Your library</h2><p>Every subject, source, and card in one place.</p></div>
+        </div>
+        <div class="library-toolbar">
+          <label class="library-search"><span>⌕</span><input id="library-search" type="search" placeholder="Search your decks" oninput="renderLibrary()"></label>
+          <div class="library-filters" role="group" aria-label="Filter decks">
+            <button class="filter-chip is-active" data-filter="all" onclick="setLibraryFilter('all', this)">All decks</button>
+            <button class="filter-chip" data-filter="due" onclick="setLibraryFilter('due', this)">Due now</button>
+          </div>
+        </div>
+        <div id="library-decks-list" class="library-grid"></div>
+      </section>
+
+      <section id="tab-weak-spots" class="hidden space-y-5">
+        <div class="page-intro">
+          <div><h2>Weak spots</h2><p>Turn the concepts that feel shaky into your next wins.</p></div>
+          <button onclick="startWeaknessQuiz()" class="button-primary">Build a focused quiz <span aria-hidden="true">→</span></button>
+        </div>
+        <div class="weakness-summary">
+          <div><span class="summary-icon">⌁</span><div><strong id="weak-card-count">0</strong><span>cards to strengthen</span></div></div>
+          <p>Cards marked Again or Hard stay near the top until they feel familiar. Revisit a card or challenge yourself with a short AI quiz.</p>
+        </div>
+        <div id="weak-cards-list" class="weak-cards-list"></div>
+      </section>
+
+      <section id="tab-profile" class="hidden space-y-5">
+        <div class="page-intro"><div><h2>Your profile</h2><p>Your preferences and learning progress.</p></div></div>
+        <div class="profile-panel">
+          <div class="profile-panel-head">
+            <div id="profile-avatar-preview" class="profile-avatar">👤</div>
+            <div><h3 id="profile-name-heading">Learner</h3><p id="profile-email-display"></p></div>
+            <button onclick="openAvatarModal()" class="button-secondary">Change avatar</button>
+          </div>
+          <div class="profile-fields">
+            <label for="profile-full-name">Name</label><input id="profile-full-name" maxlength="80">
+            <label for="profile-username">Username</label><input id="profile-username" maxlength="24">
+            <label for="profile-birthday">Birthday <span class="optional-label">optional</span></label><input id="profile-birthday" type="date">
+          </div>
+          <p id="profile-page-error" class="auth-error hidden" role="alert"></p>
+          <button onclick="saveProfileSettings()" class="button-primary">Save changes</button>
         </div>
       </section>
 
@@ -276,12 +448,7 @@
         <div class="bg-white border border-slate-200/80 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] p-6 sm:p-8 space-y-6">
           <div>
             <h2 class="text-lg font-bold text-slate-900">Create Study Deck</h2>
-            <p class="text-xs text-slate-500 mt-0.5">How would you like to build your deck today?</p>
-          </div>
-
-          <div class="grid grid-cols-2 gap-2 p-1 bg-slate-100 rounded-xl border border-slate-200">
-            <button onclick="setCreationMode('upload')" id="mode-btn-upload" class="py-2.5 text-xs font-semibold rounded-lg bg-white text-slate-900 shadow-2xs transition-all">📁 Upload PDF File</button>
-            <button onclick="setCreationMode('chat')" id="mode-btn-chat" class="py-2.5 text-xs font-medium rounded-lg text-slate-500 hover:text-slate-900 transition-all">💬 Chat with AI / Notes</button>
+            <p class="text-xs text-slate-500 mt-0.5">Upload a study document and turn it into a deck you can revisit anytime.</p>
           </div>
 
           <div class="space-y-4">
@@ -290,14 +457,9 @@
               <input type="text" id="deckTitle" class="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-xs bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500 transition-all" placeholder="e.g. Chapter 1 Review">
             </div>
 
-            <div id="input-container-upload" class="space-y-3">
+            <div class="space-y-3">
               <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">Upload PDF Document</label>
-              <input type="file" id="pdfFile" accept=".pdf" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer border border-slate-200 rounded-xl bg-slate-50/50 p-1">
-            </div>
-
-            <div id="input-container-chat" class="hidden space-y-3">
-              <label class="block text-[11px] font-bold text-slate-700 uppercase tracking-wider mb-1.5">Talk / Paste Notes for AI to Learn From</label>
-              <textarea id="lectureContent" rows="4" class="w-full rounded-xl border border-slate-200 p-3 text-xs bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500 transition-all" placeholder="Describe the topic or paste lecture notes here..."></textarea>
+              <input type="file" id="pdfFile" accept=".pdf,application/pdf" class="w-full text-xs text-slate-500 file:mr-4 file:py-2 file:px-3.5 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-teal-50 file:text-teal-700 hover:file:bg-teal-100 cursor-pointer border border-slate-200 rounded-xl bg-slate-50/50 p-1">
             </div>
 
             <div>
@@ -332,6 +494,7 @@
             <h3 id="current-deck-title" class="text-xs font-bold text-slate-600 uppercase tracking-wide">Study Session</h3>
           </div>
           <div class="flex items-center space-x-2">
+            <button onclick="shuffleCurrentDeck()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-800 px-2.5 py-1 rounded-lg border border-slate-200 font-semibold transition-all">🔀 Shuffle</button>
             <label for="voiceSelect" class="text-[10px] font-semibold text-slate-400">Voice:</label>
             <select id="voiceSelect" class="text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-teal-500">
               <option value="">Default Voice</option>
@@ -362,7 +525,6 @@
 
               <div class="space-y-3 my-auto text-center px-4">
                 <p id="card-question" class="text-base font-medium text-slate-900 leading-relaxed"></p>
-                <!-- Voice Transcription Transcript Box -->
                 <div id="voice-transcript-box" class="hidden p-3 bg-teal-50/80 border border-teal-200 rounded-xl text-xs text-teal-900 font-medium animate-pulse">
                   🗣️ Hearing: <span id="transcript-text">Listening...</span>
                 </div>
@@ -394,24 +556,29 @@
           </div>
         </div>
 
-        <div id="srs-actions" class="grid grid-cols-3 gap-3 opacity-40 pointer-events-none transition-all">
-          <button onclick="event.stopPropagation(); submitReview('hard')" class="srs-btn bg-red-50 border border-red-200 hover:bg-red-100 text-red-700 font-semibold py-3 rounded-xl text-xs transition-all shadow-2xs">
-            Hard 🔴
+        <div id="srs-actions" class="grid grid-cols-4 gap-2 opacity-40 pointer-events-none transition-all">
+          <button onclick="event.stopPropagation(); submitReview('again')" class="srs-btn review-again">
+            <span>Again</span><small>10 min</small>
           </button>
-          <button onclick="event.stopPropagation(); submitReview('good')" class="srs-btn bg-amber-50 border border-amber-200 hover:bg-amber-100 text-amber-700 font-semibold py-3 rounded-xl text-xs transition-all shadow-2xs">
-            Good 🟡
+          <button onclick="event.stopPropagation(); submitReview('hard')" class="srs-btn review-hard">
+            <span>Hard</span><small>1 day</small>
           </button>
-          <button onclick="event.stopPropagation(); submitReview('easy')" class="srs-btn bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 text-emerald-700 font-semibold py-3 rounded-xl text-xs transition-all shadow-2xs">
-            Easy 🟢
+          <button onclick="event.stopPropagation(); submitReview('good')" class="srs-btn review-good">
+            <span>Good</span><small>3 days</small>
+          </button>
+          <button onclick="event.stopPropagation(); submitReview('easy')" class="srs-btn review-easy">
+            <span>Easy</span><small>4 days</small>
           </button>
         </div>
 
         <div class="flex flex-wrap items-center justify-center gap-2 text-[10px] text-slate-400 font-mono pt-1">
           <span><kbd class="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-700">Space</kbd> Flip</span>
           <span>&bull;</span>
-          <span><kbd class="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-700">1</kbd> Hard</span>
-          <span><kbd class="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-700">2</kbd> Good</span>
-          <span><kbd class="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-700">3</kbd> Easy</span>
+          <span><kbd class="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-700">1</kbd> Again</span>
+          <span><kbd class="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-700">2</kbd> Hard</span>
+          <span><kbd class="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-700">3</kbd> Good</span>
+          <span>&bull;</span>
+          <span><kbd class="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-700">4</kbd> Easy</span>
           <span>&bull;</span>
           <span><kbd class="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-700">S</kbd> Listen</span>
           <span><kbd class="px-1.5 py-0.5 bg-slate-100 border border-slate-200 rounded text-slate-700">E</kbd> Explain</span>
@@ -419,6 +586,17 @@
 
         <div id="feedback-toast" class="hidden text-center text-xs font-medium text-slate-600 py-1">
           Saved! ✓ Advancing...
+        </div>
+
+        <div id="study-complete" class="session-complete hidden">
+          <span class="session-complete-mark">✓</span>
+          <h2>Session complete</h2>
+          <p>You showed up for your future self. Your cards are saved in your library and ready whenever you want to study them again.</p>
+          <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
+            <button onclick="studyCurrentDeckAgain()" id="study-again-button" class="button-primary">Study this deck again</button>
+            <button onclick="switchTab('library')" class="button-secondary">Open my library</button>
+            <button onclick="switchTab('dashboard')" class="button-secondary">Back to today</button>
+          </div>
         </div>
       </section>
 
@@ -435,51 +613,212 @@
 
   </div>
 
-  <!-- AI Explanation Modal -->
-  <div id="aiModal" class="fixed inset-0 bg-slate-900/40 backdrop-blur-2xs hidden flex items-center justify-center p-4 z-50">
-    <div class="bg-white border border-slate-200 rounded-2xl shadow-xl max-w-lg w-full p-6 space-y-4">
-      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-        <h3 class="font-bold text-slate-900 text-xs flex items-center space-x-2">
-          <span>🧠 NVIDIA Nemotron AI Tutor</span>
-        </h3>
-        <button onclick="closeAiModal()" class="text-slate-400 hover:text-slate-900 font-bold text-xs w-6 h-6 flex items-center justify-center rounded-md hover:bg-slate-100 transition-all">✕</button>
-      </div>
-      
-      <div id="aiModalContent" class="text-xs text-slate-700 leading-relaxed max-h-[250px] overflow-y-auto space-y-3 p-2">
-        <span class="text-teal-600 font-medium animate-pulse">⚡ Streaming instant Nemotron explanation...</span>
-      </div>
-
-      <div class="flex items-center space-x-2 pt-2 border-t border-slate-100">
-        <input type="text" id="tutorQueryInput" onkeydown="if(event.key==='Enter') openAiExplanationStream(this.value)" placeholder="Ask a follow-up question..." class="flex-1 rounded-xl border border-slate-200 p-2.5 text-xs bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-teal-500">
-        <button onclick="openAiExplanationStream(document.getElementById('tutorQueryInput').value)" id="tutorSendBtn" class="bg-teal-600 hover:bg-teal-700 text-white font-medium text-xs px-4 py-2.5 rounded-xl transition-all shadow-sm">Ask 💬</button>
-      </div>
+  <aside id="explanation-panel" class="explanation-panel hidden" aria-label="AI concept explanation" aria-live="polite">
+    <header class="explanation-header">
+      <div><p class="eyebrow">YOUR STUDY COMPANION</p><h2>Understand the idea</h2></div>
+      <button onclick="closeAiModal()" class="explanation-close" aria-label="Close explanation">×</button>
+    </header>
+    <div class="explanation-context">
+      <span>ON THIS CARD</span>
+      <p id="explanation-question"></p>
     </div>
-  </div>
+    <div id="explanation-thread" class="explanation-thread"></div>
+    <form class="explanation-compose" onsubmit="event.preventDefault(); openAiExplanationStream(document.getElementById('tutorQueryInput').value)">
+      <input type="text" id="tutorQueryInput" placeholder="Ask a follow-up..." autocomplete="off" aria-label="Ask a follow-up question">
+      <button type="submit" id="tutorSendBtn">Ask <span aria-hidden="true">↑</span></button>
+    </form>
+    <p class="explanation-footnote">AI can make mistakes. Check important facts against your course materials.</p>
+  </aside>
 
   <!-- App Controller Script -->
   <script>
-    let currentUser = localStorage.getItem('synapse_user');
-    let userAvatar = localStorage.getItem('synapse_avatar') || '👤';
-    let savedDecks = JSON.parse(localStorage.getItem('synapse_decks') || '[]');
+    let currentUser = null;
+    let authClient = null;
+    let authSession = null;
+    let authSubscription = null;
+    let profileData = null;
+    let dashboardStats = null;
+    let userAvatar = '👤';
+    let savedDecks = [];
     let currentDeckIndex = null;
     let currentDeckCards = [];
     let currentIndex = 0;
     let isFlipped = false;
-    let totalReviewsCount = parseInt(localStorage.getItem('synapse_reviews') || '0');
+    let totalReviewsCount = 0;
     
     // Gamification state
-    let userXP = parseInt(localStorage.getItem('synapse_xp') || '0');
-    let userLevel = parseInt(localStorage.getItem('synapse_level') || '1');
+    let userXP = 0;
+    let userLevel = 1;
 
     let availableVoices = [];
-    let currentQuiz = { questions: [], index: 0 };
-    let currentCreationMode = 'upload';
+    let currentQuiz = { questions: [], index: 0, retestCards: [] };
+    let authMode = 'signup';
+    let libraryFilter = 'all';
+    let isReviewSaving = false;
     
     let calSelectedDay = 24;
     let calSelectedMonth = 9;
     let calSelectedYear = 2009;
 
     window.speechUtterances = [];
+
+    function showAuthMessage(message, success = false) {
+      const error = document.getElementById('auth-error');
+      if (!error) return;
+      error.textContent = message;
+      error.classList.toggle('is-success', success);
+      error.classList.remove('hidden');
+    }
+
+    async function authenticatedFetch(endpoint, options = {}) {
+      if (!authClient || !authSession) {
+        throw new Error('Sign in to continue.');
+      }
+      const { data, error } = await authClient.auth.getSession();
+      if (error) throw new Error(error.message);
+      authSession = data.session;
+      if (!authSession) throw new Error('Your session has expired. Please sign in again.');
+
+      const headers = new Headers(options.headers || {});
+      headers.set('Authorization', `Bearer ${authSession.access_token}`);
+      if (options.body && !(options.body instanceof FormData)) {
+        headers.set('Content-Type', 'application/json');
+      }
+
+      const response = await fetch(endpoint, { ...options, headers });
+      if (!response.ok) {
+        let result;
+        try {
+          result = await response.json();
+        } catch {
+          throw new Error('The server returned an unreadable response.');
+        }
+        throw new Error(result.error || 'The request could not be completed.');
+      }
+      return response;
+    }
+
+    async function apiRequest(endpoint, options = {}) {
+      const response = await authenticatedFetch(endpoint, options);
+      let result;
+      try {
+        result = await response.json();
+      } catch {
+        throw new Error('The server returned an unreadable response.');
+      }
+      return result;
+    }
+
+    function normalizeDeck(deck) {
+      return {
+        ...deck,
+        sourceType: deck.source_type === 'pdf' ? 'PDF' : 'Notes',
+        sourceDetail: deck.source_detail || '',
+        date: new Date(deck.created_at).toLocaleDateString(),
+        cards: (deck.cards || []).map(card => ({
+          ...card,
+          repetition_level: card.repetition_level || 0,
+          interval_days: card.interval_days || 0,
+          ease_factor: Number(card.ease_factor || 2.5)
+        }))
+      };
+    }
+
+    async function loadUserData() {
+      const [profileResult, deckResult, statsResult] = await Promise.all([
+        apiRequest('/api/profile'),
+        apiRequest('/api/decks'),
+        apiRequest('/api/stats')
+      ]);
+      profileData = profileResult.profile;
+      savedDecks = deckResult.decks.map(normalizeDeck);
+      dashboardStats = statsResult;
+      totalReviewsCount = statsResult.reviewCount;
+      userAvatar = profileData.avatar || '👤';
+      userXP = profileData.xp || 0;
+      userLevel = profileData.level || 1;
+    }
+
+    async function saveUserData() {
+      if (!authSession) return;
+      try {
+        const result = await apiRequest('/api/profile', {
+          method: 'PATCH',
+          body: JSON.stringify({ avatar: userAvatar })
+        });
+        profileData = result.profile;
+      } catch (error) {
+        showToast(`Could not save profile: ${error.message}`, 'error');
+      }
+    }
+
+    // COMMAND PALETTE SYSTEM
+    function openCmdPalette() {
+      document.getElementById('commandPalette').classList.remove('hidden');
+      renderCommandPaletteDeckOptions();
+      const input = document.getElementById('cmdInput');
+      input.value = '';
+      filterCmdOptions();
+      input.focus();
+    }
+
+    function renderCommandPaletteDeckOptions() {
+      const results = document.getElementById('cmdResults');
+      results.querySelectorAll('.cmd-deck-item').forEach(item => item.remove());
+      savedDecks.forEach((deck, index) => {
+        const button = document.createElement('button');
+        button.className = 'cmd-item cmd-deck-item w-full text-left px-3 py-2 text-xs font-semibold hover:bg-slate-100 rounded-xl flex items-center justify-between';
+        const title = document.createElement('span');
+        title.textContent = `Study all · ${deck.title}`;
+        const detail = document.createElement('span');
+        detail.className = 'text-[10px] text-slate-400';
+        detail.textContent = `${deck.cards.length} cards`;
+        button.append(title, detail);
+        button.addEventListener('click', () => {
+          closeCmdPalette();
+          startStudySession(index, true);
+        });
+        results.appendChild(button);
+      });
+    }
+
+    function closeCmdPalette() {
+      document.getElementById('commandPalette').classList.add('hidden');
+    }
+
+    function filterCmdOptions() {
+      const q = document.getElementById('cmdInput').value.toLowerCase();
+      const items = document.querySelectorAll('#cmdResults button');
+      items.forEach(item => {
+        if (item.textContent.toLowerCase().includes(q)) {
+          item.classList.remove('hidden');
+        } else {
+          item.classList.add('hidden');
+        }
+      });
+      setActiveCommand(0);
+    }
+
+    function setActiveCommand(index) {
+      const items = [...document.querySelectorAll('#cmdResults button:not(.hidden)')];
+      if (!items.length) return;
+      const selectedIndex = (index + items.length) % items.length;
+      items.forEach((item, itemIndex) => item.classList.toggle('is-selected', itemIndex === selectedIndex));
+      document.getElementById('cmdInput').dataset.activeCommand = String(selectedIndex);
+    }
+
+    function handleCommandPaletteKeydown(event) {
+      if (document.getElementById('commandPalette').classList.contains('hidden')) return;
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        const input = document.getElementById('cmdInput');
+        const next = Number(input.dataset.activeCommand || 0) + (event.key === 'ArrowDown' ? 1 : -1);
+        setActiveCommand(next);
+      } else if (event.key === 'Enter') {
+        event.preventDefault();
+        document.querySelector('#cmdResults button.is-selected')?.click();
+      }
+    }
 
     // CUSTOM TOAST NOTIFICATION SYSTEM
     function showToast(message, type = 'info') {
@@ -495,7 +834,7 @@
       };
 
       toast.className = `pointer-events-auto flex items-center space-x-2 px-4 py-3 rounded-xl border text-xs font-semibold shadow-lg transition-all duration-300 transform translate-y-2 opacity-0 ${bgColors[type] || bgColors.info}`;
-      toast.innerHTML = `<span>${message}</span>`;
+      toast.textContent = message;
 
       container.appendChild(toast);
 
@@ -512,9 +851,6 @@
     window.addEventListener('DOMContentLoaded', () => {
       initYearDropdown();
       checkAuthAndRedirect();
-      updateDashboardStats();
-      updateXpBar();
-      renderSavedDecksList();
       loadVoices();
       if ('speechSynthesis' in window) {
         window.speechSynthesis.onvoiceschanged = loadVoices;
@@ -544,18 +880,15 @@
       recognition.onresult = (event) => {
         const spokenText = event.results[0][0].transcript;
         transcriptText.textContent = `"${spokenText}"`;
-        
-        const card = currentDeckCards[currentIndex];
-        const correctAnswer = card.answer.toLowerCase();
 
         showToast(`Heard: "${spokenText}" 🎙️ Flipped card to check!`, 'success');
         setTimeout(() => {
           transcriptBox.classList.add('hidden');
-          flipCard(); // Automatically flip card to reveal answer
+          flipCard();
         }, 1200);
       };
 
-      recognition.onerror = (event) => {
+      recognition.onerror = () => {
         transcriptText.textContent = 'Could not catch audio. Try again!';
         setTimeout(() => transcriptBox.classList.add('hidden'), 2000);
       };
@@ -564,23 +897,24 @@
     }
 
     // GAMIFICATION & XP REWARD SYSTEM
-    function addXP(amount) {
-      userXP += amount;
-      const xpNeededForNextLevel = userLevel * 100;
-
-      if (userXP >= xpNeededForNextLevel) {
-        userLevel++;
-        userXP -= xpNeededForNextLevel;
-        showToast(`🎉 Level Up! You reached Level ${userLevel}! 🌟`, 'success');
-        // Trigger celebratory confetti on level up!
-        confetti({ particleCount: 100, spread: 70, origin: { y: 0.6 } });
-      } else {
-        showToast(`+${amount} XP Gained! ⭐`, 'success');
+    async function addXP(amount) {
+      try {
+        const { profile } = await apiRequest('/api/award-xp', {
+          method: 'POST',
+          body: JSON.stringify({ amount })
+        });
+        const levelChanged = profile.level > userLevel;
+        profileData = profile;
+        userXP = profile.xp;
+        userLevel = profile.level;
+        updateXpBar();
+        showToast(levelChanged ? `Level up! You reached level ${userLevel}.` : `+${amount} XP earned.`, 'success');
+        if (levelChanged && window.confetti) {
+          window.confetti({ particleCount: 80, spread: 60, origin: { y: 0.6 } });
+        }
+      } catch (error) {
+        showToast(`Could not save XP: ${error.message}`, 'error');
       }
-
-      localStorage.setItem('synapse_xp', userXP);
-      localStorage.setItem('synapse_level', userLevel);
-      updateXpBar();
     }
 
     function updateXpBar() {
@@ -596,15 +930,31 @@
     }
 
     window.addEventListener('keydown', (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        openCmdPalette();
+        return;
+      }
+      if (e.key === 'Escape') {
+        closeCmdPalette();
+        if (!document.getElementById('explanation-panel').classList.contains('hidden')) closeAiModal();
+        return;
+      }
+      const commandPalette = document.getElementById('commandPalette');
+      if (commandPalette && !commandPalette.classList.contains('hidden')) {
+        handleCommandPaletteKeydown(e);
+        if (['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key)) return;
+      }
+
       const mainApp = document.getElementById('main-app');
       const tabStudy = document.getElementById('tab-study');
-      const aiModal = document.getElementById('aiModal');
+      const explanationPanel = document.getElementById('explanation-panel');
       
       if (
         mainApp.classList.contains('hidden') ||
         !tabStudy || 
         tabStudy.classList.contains('hidden') || 
-        (aiModal && !aiModal.classList.contains('hidden')) ||
+        (explanationPanel && !explanationPanel.classList.contains('hidden')) ||
         ['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)
       ) {
         return;
@@ -617,11 +967,14 @@
         flipCard();
       } else if (key === '1') {
         e.preventDefault();
-        if (isFlipped) submitReview('hard');
+        if (isFlipped) submitReview('again');
       } else if (key === '2') {
         e.preventDefault();
-        if (isFlipped) submitReview('good');
+        if (isFlipped) submitReview('hard');
       } else if (key === '3') {
+        e.preventDefault();
+        if (isFlipped) submitReview('good');
+      } else if (key === '4') {
         e.preventDefault();
         if (isFlipped) submitReview('easy');
       } else if (key === 's') {
@@ -643,7 +996,7 @@
 
     function selectEmojiAvatar(emoji) {
       userAvatar = emoji;
-      localStorage.setItem('synapse_avatar', emoji);
+      saveUserData();
       updateAvatarPreviews();
       closeAvatarModal();
       showToast('Profile icon updated! ✨', 'success');
@@ -651,16 +1004,18 @@
 
     function handleAvatarUpload(event) {
       const file = event.target.files[0];
-      if (file) {
+      if (file && ['image/png', 'image/jpeg', 'image/webp'].includes(file.type) && file.size <= 100000) {
         const reader = new FileReader();
         reader.onload = function(e) {
-          userAvatar = `url('${e.target.result}')`;
-          localStorage.setItem('synapse_avatar', userAvatar);
+          userAvatar = e.target.result;
+          saveUserData();
           updateAvatarPreviews();
           closeAvatarModal();
           showToast('Custom profile image uploaded! 🖼️', 'success');
         };
         reader.readAsDataURL(file);
+      } else if (file) {
+        showToast('Choose a PNG, JPEG, or WebP image under 100 KB.', 'warning');
       }
     }
 
@@ -668,18 +1023,31 @@
       const previewBox = document.getElementById('avatar-preview');
       const emojiSpan = document.getElementById('avatar-emoji');
       const chipBox = document.getElementById('dashboard-avatar-chip');
-
-      if (userAvatar.startsWith('url(')) {
-        previewBox.style.backgroundImage = userAvatar;
-        emojiSpan.textContent = '';
-        chipBox.style.backgroundImage = userAvatar;
-        chipBox.textContent = '';
-      } else {
-        previewBox.style.backgroundImage = 'none';
-        emojiSpan.textContent = userAvatar;
-        chipBox.style.backgroundImage = 'none';
-        chipBox.textContent = userAvatar;
+      const profilePreview = document.getElementById('profile-avatar-preview');
+      const setAvatar = (box, emoji) => {
+        if (!box) return;
+        if (userAvatar && userAvatar.startsWith('data:image/')) {
+          box.style.backgroundImage = `url("${userAvatar}")`;
+          box.textContent = '';
+          if (emoji) emoji.textContent = '';
+        } else {
+          box.style.backgroundImage = 'none';
+          box.textContent = '';
+          if (emoji) emoji.textContent = userAvatar || '👤';
+          else box.textContent = userAvatar || '👤';
+        }
+      };
+      if (previewBox) {
+        if (userAvatar && userAvatar.startsWith('data:image/')) {
+          previewBox.style.backgroundImage = `url("${userAvatar}")`;
+        } else {
+          previewBox.style.backgroundImage = 'none';
+        }
+        if (emojiSpan) emojiSpan.textContent = '';
       }
+      if (emojiSpan && !(userAvatar && userAvatar.startsWith('data:image/'))) emojiSpan.textContent = userAvatar || '👤';
+      setAvatar(chipBox);
+      setAvatar(profilePreview);
     }
 
     function initYearDropdown() {
@@ -751,167 +1119,407 @@
     function validateUsername() {
       const val = document.getElementById('setupUsername').value.trim().toLowerCase();
       const err = document.getElementById('username-error');
-      if (val === 'taken' || val === 'lsds') {
+      if (val && !/^[a-z0-9_]{3,24}$/.test(val)) {
+        err.textContent = 'Use 3–24 letters, numbers, or underscores.';
         err.classList.remove('hidden');
       } else {
         err.classList.add('hidden');
       }
     }
 
-    function checkAuthAndRedirect() {
+    function toggleAuthMode() {
+      authMode = authMode === 'signup' ? 'signin' : 'signup';
+      const isSignup = authMode === 'signup';
+      safeSetText('auth-form-title', isSignup ? 'Create your account' : 'Welcome back');
+      safeSetText('auth-form-copy', isSignup
+        ? 'Your personal workspace for learning that sticks.'
+        : 'Pick up where your memory needs you most.');
+      safeSetText('auth-submit', isSignup ? 'Create account →' : 'Sign in →');
+      safeSetText('auth-mode-toggle', isSignup ? 'Already have an account? Sign in' : 'New to Synapse? Create an account');
+      document.getElementById('auth-password').autocomplete = isSignup ? 'new-password' : 'current-password';
+      document.getElementById('auth-password').placeholder = isSignup ? 'At least 8 characters' : 'Your password';
+      if (isSignup) {
+        document.getElementById('auth-password').setAttribute('minlength', '8');
+      } else {
+        document.getElementById('auth-password').removeAttribute('minlength');
+      }
+      document.getElementById('auth-mode-toggle').innerHTML = isSignup
+        ? 'Already have an account? <strong>Sign in</strong>'
+        : 'New to Synapse? <strong>Create an account</strong>';
+      document.getElementById('auth-error').classList.add('hidden');
+    }
+
+    function openAuth(mode = 'signup') {
+      if (authMode !== mode) toggleAuthMode();
+      document.getElementById('landing-page').classList.add('hidden');
+      document.getElementById('main-app').classList.add('hidden');
+      document.getElementById('auth-page').classList.remove('hidden');
+      document.getElementById('auth-form-pane').classList.remove('hidden');
+      document.getElementById('profile-setup-pane').classList.add('hidden');
+      document.getElementById('auth-mode-toggle').classList.remove('hidden');
+      document.getElementById('auth-error').classList.add('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.getElementById('auth-email').focus();
+    }
+
+    function showLanding() {
+      document.getElementById('auth-page').classList.add('hidden');
+      document.getElementById('main-app').classList.add('hidden');
+      document.getElementById('landing-page').classList.remove('hidden');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    async function showWorkspace(profile) {
+      profileData = profile;
+      currentUser = profile.full_name;
+      userAvatar = profile.avatar || '👤';
+      authSession = (await authClient.auth.getSession()).data.session;
+      await loadUserData();
+      document.getElementById('landing-page').classList.add('hidden');
+      document.getElementById('auth-page').classList.add('hidden');
+      document.getElementById('main-app').classList.remove('hidden');
+      safeSetText('user-display-name', currentUser);
+      safeSetText('profile-name-heading', currentUser);
+      safeSetText('profile-email-display', authSession?.user?.email || '');
+      safeSetText('greeting-banner-title', `Welcome back, ${currentUser.split(' ')[0]} 👋`);
+      document.getElementById('profile-full-name').value = profileData.full_name || '';
+      document.getElementById('profile-username').value = profileData.username || '';
+      document.getElementById('profile-birthday').value = profileData.birthday || '';
+      updateAvatarPreviews();
+      updateDashboardStats();
+      updateXpBar();
+      renderSavedDecksList();
+      renderLibrary();
+      renderWeakSpots();
+      switchTab('dashboard');
+    }
+
+    async function checkAuthAndRedirect() {
       const authPage = document.getElementById('auth-page');
       const mainApp = document.getElementById('main-app');
-      const nameDisplay = document.getElementById('user-display-name');
-      const bannerTitle = document.getElementById('greeting-banner-title');
-      const emailTag = document.getElementById('user-email-tag');
+      authPage.classList.add('hidden');
+      mainApp.classList.add('hidden');
+      try {
+        const configResponse = await fetch('/api/config');
+        const config = await configResponse.json();
+        if (!configResponse.ok) throw new Error(config.error || 'Authentication is not configured.');
+        if (!window.supabase?.createClient) {
+          throw new Error('The sign-in library could not be loaded. Refresh the page and try again.');
+        }
+        authClient = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey);
+        if (!authSubscription) {
+          const subscriptionResult = authClient.auth.onAuthStateChange((event, session) => {
+            authSession = session;
+            if (event === 'SIGNED_OUT') {
+              currentUser = null;
+              profileData = null;
+              savedDecks = [];
+              document.getElementById('profile-setup-pane').classList.add('hidden');
+              document.getElementById('auth-form-pane').classList.remove('hidden');
+              document.getElementById('auth-mode-toggle').classList.remove('hidden');
+              mainApp.classList.add('hidden');
+              authPage.classList.add('hidden');
+              document.getElementById('landing-page').classList.remove('hidden');
+            }
+          });
+          authSubscription = subscriptionResult.data.subscription;
+        }
 
-      updateAvatarPreviews();
+        const { data, error } = await authClient.auth.getSession();
+        if (error) throw error;
+        authSession = data.session;
+        if (!authSession) return;
 
-      if (currentUser) {
-        authPage.classList.add('hidden');
-        mainApp.classList.remove('hidden');
-        const firstName = currentUser.split(' ')[0];
-        if (nameDisplay) nameDisplay.textContent = currentUser;
-        if (bannerTitle) bannerTitle.textContent = `Good day, ${firstName} 👋`;
-      } else {
-        authPage.classList.remove('hidden');
-        mainApp.classList.add('hidden');
-        if (emailTag) emailTag.textContent = 'narmeennayyab2009@gmail.com';
+        const { profile } = await apiRequest('/api/profile');
+        if (!profile.username) {
+          document.getElementById('landing-page').classList.add('hidden');
+          authPage.classList.remove('hidden');
+          document.getElementById('auth-form-pane').classList.add('hidden');
+          document.getElementById('profile-setup-pane').classList.remove('hidden');
+          document.getElementById('auth-mode-toggle').classList.add('hidden');
+          safeSetText('user-email-tag', authSession.user.email || '');
+          document.getElementById('setupFullName').value = profile.full_name || '';
+          document.getElementById('setupUsername').value = profile.username || '';
+          userAvatar = profile.avatar || '👤';
+          updateAvatarPreviews();
+          return;
+        }
+        await showWorkspace(profile);
+      } catch (error) {
+        openAuth(authMode);
+        showAuthMessage(error.message || 'Could not connect to Synapse. Check your setup and retry.');
       }
     }
 
-    function executeAuthRedirect() {
-      const fullName = document.getElementById('setupFullName').value.trim();
-      const username = document.getElementById('setupUsername').value.trim();
+    async function submitAuthentication(event) {
+      event.preventDefault();
+      const email = document.getElementById('auth-email').value.trim();
+      const password = document.getElementById('auth-password').value;
+      const button = document.getElementById('auth-submit');
+      const errorBox = document.getElementById('auth-error');
+      errorBox.classList.add('hidden');
+      button.disabled = true;
+      button.textContent = authMode === 'signup' ? 'Creating account…' : 'Signing in…';
 
-      currentUser = fullName || username || 'Narmeen Imran';
-      localStorage.setItem('synapse_user', currentUser);
-      checkAuthAndRedirect();
-      showToast(`Welcome to Synapse AI, ${currentUser}! ⚡`, 'success');
+      try {
+        if (!authClient) throw new Error('Authentication is still loading. Please try again.');
+        const response = authMode === 'signup'
+          ? await authClient.auth.signUp({
+              email,
+              password,
+              options: { data: { full_name: email.split('@')[0] } }
+            })
+          : await authClient.auth.signInWithPassword({ email, password });
+        if (response.error) throw response.error;
+        if (!response.data.session) {
+          showAuthMessage('Check your email to confirm your account, then sign in.', true);
+          return;
+        }
+        authSession = response.data.session;
+        const { profile } = await apiRequest('/api/profile');
+        if (!profile.username) {
+          document.getElementById('auth-form-pane').classList.add('hidden');
+          document.getElementById('profile-setup-pane').classList.remove('hidden');
+          document.getElementById('auth-mode-toggle').classList.add('hidden');
+          safeSetText('user-email-tag', email);
+          document.getElementById('setupFullName').value = profile.full_name || '';
+          userAvatar = profile.avatar || '👤';
+          updateAvatarPreviews();
+        } else {
+          await showWorkspace(profile);
+          showToast('Welcome back to your learning space.', 'success');
+        }
+      } catch (error) {
+        showAuthMessage(error.message || 'Could not authenticate. Please try again.');
+      } finally {
+        button.disabled = false;
+        button.innerHTML = authMode === 'signup' ? 'Create account <span aria-hidden="true">→</span>' : 'Sign in <span aria-hidden="true">→</span>';
+      }
     }
 
-    function handleSignOut() {
-      localStorage.removeItem('synapse_user');
+    async function executeAuthRedirect() {
+      const fullName = document.getElementById('setupFullName').value.trim();
+      const username = document.getElementById('setupUsername').value.trim().toLowerCase();
+      const birthday = document.getElementById('setupBirthday').value || null;
+      const error = document.getElementById('profile-error');
+      error.classList.add('hidden');
+      if (!fullName || fullName.length > 80) {
+        error.textContent = 'Enter a name between 1 and 80 characters.';
+        error.classList.remove('hidden');
+        return;
+      }
+      if (!/^[a-z0-9_]{3,24}$/.test(username)) {
+        error.textContent = 'Choose a username with 3–24 letters, numbers, or underscores.';
+        error.classList.remove('hidden');
+        return;
+      }
+
+      const button = document.getElementById('completeSetupBtn');
+      button.disabled = true;
+      button.textContent = 'Saving your profile…';
+      try {
+        const values = { full_name: fullName, username, avatar: userAvatar };
+        if (birthday) values.birthday = birthday;
+        const { profile } = await apiRequest('/api/profile', {
+          method: 'PATCH',
+          body: JSON.stringify(values)
+        });
+        await showWorkspace(profile);
+        showToast(`Welcome to Synapse, ${profile.full_name}.`, 'success');
+      } catch (requestError) {
+        error.textContent = requestError.message;
+        error.classList.remove('hidden');
+      } finally {
+        button.disabled = false;
+        button.innerHTML = 'Open my workspace <span aria-hidden="true">→</span>';
+      }
+    }
+
+    async function handleSignOut() {
+      if (authClient) {
+        const { error } = await authClient.auth.signOut();
+        if (error) {
+          showToast(`Could not sign out: ${error.message}`, 'error');
+          return;
+        }
+      }
+      authSession = null;
       currentUser = null;
-      checkAuthAndRedirect();
-      showToast('Logged out successfully', 'info');
+      savedDecks = [];
+      userXP = 0;
+      userLevel = 1;
+      totalReviewsCount = 0;
+      document.getElementById('profile-setup-pane').classList.add('hidden');
+      document.getElementById('auth-form-pane').classList.remove('hidden');
+      document.getElementById('auth-error').classList.add('hidden');
+      showLanding();
+      showToast('Signed out successfully.', 'info');
+    }
+
+    async function saveProfileSettings() {
+      const error = document.getElementById('profile-page-error');
+      error.classList.add('hidden');
+      const fullName = document.getElementById('profile-full-name').value.trim();
+      const username = document.getElementById('profile-username').value.trim().toLowerCase();
+      const birthday = document.getElementById('profile-birthday').value || null;
+      try {
+        const { profile } = await apiRequest('/api/profile', {
+          method: 'PATCH',
+          body: JSON.stringify({ full_name: fullName, username, birthday })
+        });
+        profileData = profile;
+        currentUser = profile.full_name;
+        safeSetText('user-display-name', profile.full_name);
+        safeSetText('profile-name-heading', profile.full_name);
+        safeSetText('greeting-banner-title', `Welcome back, ${profile.full_name.split(' ')[0]} 👋`);
+        showToast('Profile saved.', 'success');
+      } catch (requestError) {
+        error.textContent = requestError.message;
+        error.classList.remove('hidden');
+      }
     }
 
     async function openAiExplanationStream(userQuery = '') {
       const card = currentDeckCards[currentIndex];
-      const modal = document.getElementById('aiModal');
-      const content = document.getElementById('aiModalContent');
+      if (!card) return;
+      const panel = document.getElementById('explanation-panel');
+      const content = document.getElementById('explanation-thread');
+      const input = document.getElementById('tutorQueryInput');
+      const sendButton = document.getElementById('tutorSendBtn');
+      const question = document.getElementById('explanation-question');
 
-      modal.classList.remove('hidden');
-      
+      panel.classList.remove('hidden');
+      document.body.classList.add('assistant-panel-open');
+      question.textContent = card.question;
       if (!userQuery) {
-        content.innerHTML = `<div class="p-3 bg-slate-50 border border-slate-200 rounded-xl"><p id="stream-target" class="text-xs text-slate-800 leading-relaxed"></p></div>`;
-      } else {
-        document.getElementById('tutorQueryInput').value = '';
-        content.innerHTML += `<div class="p-3 bg-slate-100 rounded-xl text-right my-2"><p class="text-xs font-medium">${userQuery}</p></div><div class="p-3 bg-slate-50 border border-slate-200 rounded-xl"><p id="stream-target" class="text-xs text-slate-800 leading-relaxed"></p></div>`;
+        content.replaceChildren();
+        const loading = document.createElement('p');
+        loading.className = 'explanation-loading';
+        loading.textContent = 'Putting this concept into context…';
+        content.appendChild(loading);
+        sendButton.disabled = true;
+        input.disabled = true;
+        try {
+          const response = await apiRequest('/api/explain', {
+            method: 'POST',
+            body: JSON.stringify({ question: card.question, answer: card.answer })
+          });
+          loading.remove();
+          renderExplanationMessage(response.explanation, 'assistant');
+        } catch (error) {
+          loading.className = 'explanation-error';
+          loading.textContent = `Could not load the explanation: ${error.message}`;
+        } finally {
+          sendButton.disabled = false;
+          input.disabled = false;
+          input.focus();
+        }
+        return;
       }
 
-      const streamTarget = document.getElementById('stream-target');
-
+      const cleanQuery = userQuery.trim();
+      if (!cleanQuery) return;
+      input.value = '';
+      renderExplanationMessage(cleanQuery, 'user');
+      const loading = document.createElement('p');
+      loading.className = 'explanation-loading';
+      loading.textContent = 'Thinking through your question…';
+      content.appendChild(loading);
+      content.scrollTop = content.scrollHeight;
+      sendButton.disabled = true;
+      input.disabled = true;
       try {
-        const response = await fetch('/api/explain-stream', {
+        const response = await apiRequest('/api/explain', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ question: card.question, answer: card.answer, userQuery })
+          body: JSON.stringify({ question: card.question, answer: card.answer, userQuery: cleanQuery })
         });
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) break;
-          const chunk = decoder.decode(value);
-          const lines = chunk.split('\n');
-          
-          lines.forEach(line => {
-            if (line.startsWith('data: ')) {
-              try {
-                const dataStr = line.slice(6);
-                if (dataStr.trim()) {
-                  const parsed = JSON.parse(dataStr);
-                  const token = parsed.choices?.[0]?.delta?.content || '';
-                  if (streamTarget) streamTarget.innerHTML += token.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
-                }
-              } catch (e) {}
-            }
-          });
-        }
-      } catch (err) {
-        if (streamTarget) streamTarget.textContent = `Explanation: ${card.answer}`;
+        loading.remove();
+        renderExplanationMessage(response.explanation, 'assistant');
+      } catch (error) {
+        loading.className = 'explanation-error';
+        loading.textContent = `Could not answer that yet: ${error.message}`;
+      } finally {
+        sendButton.disabled = false;
+        input.disabled = false;
+        input.focus();
       }
     }
 
+    function renderExplanationMessage(text, role) {
+      const content = document.getElementById('explanation-thread');
+      const message = document.createElement('div');
+      message.className = `explanation-message ${role === 'user' ? 'explanation-user' : 'explanation-assistant'}`;
+      const paragraph = document.createElement('p');
+      paragraph.innerHTML = escapeHtml(text || 'No explanation was returned.').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+      message.appendChild(paragraph);
+      content.appendChild(message);
+      content.scrollTop = content.scrollHeight;
+    }
+
     async function submitReview(rating) {
+      if (isReviewSaving) return;
       stopSpeech();
       const card = currentDeckCards[currentIndex];
+      if (!card) return;
+      isReviewSaving = true;
       const srsActions = document.getElementById('srs-actions');
       if (srsActions) srsActions.classList.add('opacity-40', 'pointer-events-none');
 
       const toast = document.getElementById('feedback-toast');
       if (toast) toast.classList.remove('hidden');
 
-      totalReviewsCount++;
-      localStorage.setItem('synapse_reviews', totalReviewsCount);
-
-      // Award XP based on recall rating
-      let xpEarned = 10;
-      if (rating === 'easy') xpEarned = 25;
-      else if (rating === 'good') xpEarned = 15;
-      addXP(xpEarned);
-
-      if (currentDeckIndex !== null && savedDecks[currentDeckIndex]) {
-        savedDecks[currentDeckIndex].totalReviews = (savedDecks[currentDeckIndex].totalReviews || 0) + 1;
-        if (rating === 'good' || rating === 'easy') {
-          savedDecks[currentDeckIndex].goodEasyReviews = (savedDecks[currentDeckIndex].goodEasyReviews || 0) + 1;
-          card.repetition_level = (card.repetition_level || 0) + 1;
-        } else {
-          card.repetition_level = 0;
-        }
-        localStorage.setItem('synapse_decks', JSON.stringify(savedDecks));
-      }
-
       try {
-        await fetch('/api/review-card', {
+        const result = await apiRequest('/api/review-card', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ cardId: card.id, rating })
         });
-      } catch (err) {
-        console.error('Failed to sync review:', err);
+        Object.assign(card, result.card);
+        profileData = result.profile;
+        userXP = result.profile.xp;
+        userLevel = result.profile.level;
+        const previousCount = dashboardStats?.reviewCount || totalReviewsCount;
+        const previousSuccessful = Math.round((dashboardStats?.confidence || 0) * previousCount / 100);
+        totalReviewsCount++;
+        if (dashboardStats) {
+          dashboardStats.reviewCount = totalReviewsCount;
+          dashboardStats.dueCount = Math.max(0, dashboardStats.dueCount - 1);
+          dashboardStats.confidence = Math.round(
+            (previousSuccessful + (rating === 'good' || rating === 'easy' ? 1 : 0)) * 100 / totalReviewsCount
+          );
+          const today = new Date().toISOString().slice(0, 10);
+          const todayActivity = dashboardStats.reviewsByDay?.find(day => day.date === today);
+          if (todayActivity) todayActivity.count++;
+        }
+        updateDashboardStats();
+        updateXpBar();
+        renderSavedDecksList();
+        renderLibrary();
+        renderWeakSpots();
+        showToast(`Review saved · +${rating === 'easy' ? 16 : rating === 'good' ? 12 : rating === 'hard' ? 8 : 5} XP`, 'success');
+        if (toast) toast.textContent = `Saved. Next review ${new Date(result.card.next_review_at).toLocaleString()}.`;
+        setTimeout(() => {
+          currentIndex++;
+          isReviewSaving = false;
+          renderCard();
+        }, 450);
+      } catch (error) {
+        isReviewSaving = false;
+        if (srsActions) srsActions.classList.remove('opacity-40', 'pointer-events-none');
+        if (toast) toast.classList.add('hidden');
+        showToast(`Review wasn't saved: ${error.message}`, 'error');
       }
-
-      setTimeout(() => {
-        currentIndex++;
-        renderCard();
-      }, 400);
     }
 
     function renderCard() {
       stopSpeech();
       if (!currentDeckCards || currentIndex >= currentDeckCards.length) {
-        // Trigger winning Confetti explosion when deck is completed!
-        confetti({
-          particleCount: 150,
-          spread: 90,
-          origin: { y: 0.5 }
-        });
-
-        const tabStudy = document.getElementById('tab-study');
-        if (tabStudy) {
-          tabStudy.innerHTML = `
-            <div class="bg-white border border-slate-200/80 rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.03)] p-8 text-center space-y-4 max-w-lg mx-auto">
-              <h2 class="text-2xl font-bold text-slate-900">🎉 Deck Completed!</h2>
-              <p class="text-xs text-slate-500">Amazing job! You successfully finished this study session and earned XP.</p>
-              <button onclick="switchTab('dashboard')" class="bg-teal-600 hover:bg-teal-700 text-white font-medium px-5 py-2.5 rounded-xl text-xs transition-all shadow-sm">Return to Dashboard</button>
-            </div>
-          `;
+        if (window.confetti) {
+          window.confetti({ particleCount: 120, spread: 75, origin: { y: 0.5 } });
         }
+
+        document.querySelectorAll('#tab-study > :not(#study-complete)').forEach(element => element.classList.add('hidden'));
+        safeSetText('study-again-button', currentDeckIndex === null ? 'Review these cards again' : 'Study this deck again');
+        document.getElementById('study-complete').classList.remove('hidden');
         return;
       }
 
@@ -949,109 +1557,251 @@
       }
     }
 
+    function shuffleCurrentDeck() {
+      if (!currentDeckCards || currentDeckCards.length === 0) return;
+      currentDeckCards = [...currentDeckCards].sort(() => Math.random() - 0.5);
+      currentIndex = 0;
+      renderCard();
+      showToast('Deck order shuffled! 🔀', 'info');
+    }
+
+    function exportDeckToCSV(index) {
+      const deck = savedDecks[index];
+      if (!deck || !deck.cards) return;
+
+      const csvCell = value => {
+        let text = String(value ?? '');
+        if (/^[=+\-@]/.test(text)) text = `'${text}`;
+        return `"${text.replace(/"/g, '""')}"`;
+      };
+      const csvContent = [
+        'Question,Answer',
+        ...deck.cards.map(card => `${csvCell(card.question)},${csvCell(card.answer)}`)
+      ].join('\r\n');
+      const objectUrl = URL.createObjectURL(new Blob([csvContent], { type: 'text/csv;charset=utf-8' }));
+      const link = document.createElement("a");
+      link.setAttribute("href", objectUrl);
+      link.setAttribute("download", `${deck.title.replace(/[^\p{L}\p{N}_-]+/gu, '_')}_Synapse.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+
+      showToast(`Exported "${deck.title}" as CSV.`, 'success');
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, character => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[character]);
+    }
+
+    function isCardDue(card) {
+      return !card.next_review_at || new Date(card.next_review_at).getTime() <= Date.now();
+    }
+
+    function isCardWeak(card) {
+      return (card.repetition_level || 0) < 2 || Number(card.ease_factor || 2.5) < 2.2;
+    }
+
     function updateDashboardStats() {
-      safeSetText('stat-decks', savedDecks.length);
-      safeSetText('stat-reviews', totalReviewsCount);
+      safeSetText('stat-decks', dashboardStats?.deckCount ?? savedDecks.length);
+      safeSetText('stat-reviews', dashboardStats?.reviewCount ?? totalReviewsCount);
+      safeSetText('stat-confidence', `${dashboardStats?.confidence ?? 0}%`);
+      safeSetText('stat-streak', `${dashboardStats?.streak ?? 0} days`);
+      safeSetText('due-card-count', `${dashboardStats?.dueCount ?? savedDecks.reduce((count, deck) => count + deck.cards.filter(isCardDue).length, 0)} cards due`);
 
-      let totalGoodEasy = 0;
-      let totalAll = 0;
-      savedDecks.forEach(d => {
-        totalGoodEasy += (d.goodEasyReviews || 0);
-        totalAll += (d.totalReviews || 0);
-      });
-
-      const avgConfidence = totalAll > 0 ? Math.round((totalGoodEasy / totalAll) * 100) : 0;
-      safeSetText('stat-confidence', avgConfidence + '%');
+      const chart = document.getElementById('weekly-activity');
+      if (chart) {
+        const days = dashboardStats?.reviewsByDay || [];
+        const maxCount = Math.max(1, ...days.map(day => day.count));
+        chart.innerHTML = days.map(day => {
+          const date = new Date(`${day.date}T12:00:00`);
+          const height = day.count ? Math.max(12, Math.round((day.count / maxCount) * 46)) : 4;
+          return `<div class="activity-day" title="${escapeHtml(day.count)} reviews"><span style="height:${height}px"></span><small>${date.toLocaleDateString(undefined, { weekday: 'short' })}</small></div>`;
+        }).join('');
+      }
     }
 
     function renderSavedDecksList() {
       const container = document.getElementById('saved-decks-list');
       if (!container) return;
-
       if (savedDecks.length === 0) {
-        container.innerHTML = `
-          <div class="text-center py-12 text-xs text-slate-400 border border-dashed border-slate-200 rounded-2xl">
-            No decks generated yet. Click "+ Create New Deck" to get started!
-          </div>
-        `;
+        container.innerHTML = '<div class="empty-state">Your library is ready when you are. Create your first deck to get started.</div>';
         return;
       }
 
-      container.innerHTML = savedDecks.map((deck, idx) => {
-        const tRev = deck.totalReviews || 0;
-        const gRev = deck.goodEasyReviews || 0;
-        const deckConf = tRev > 0 ? Math.round((gRev / tRev) * 100) : 0;
-
+      container.innerHTML = savedDecks.slice(0, 4).map((deck, index) => {
+        const cards = deck.cards || [];
+        const dueCount = cards.filter(isCardDue).length;
+        const mastery = cards.length
+          ? Math.round((cards.filter(card => (card.repetition_level || 0) >= 2).length / cards.length) * 100)
+          : 0;
         return `
-          <div class="flex flex-col sm:flex-row sm:items-center justify-between p-4 border border-slate-200/80 rounded-2xl hover:border-slate-400 transition-all bg-white gap-3 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between p-4 border border-slate-200/80 rounded-2xl bg-white gap-3">
             <div class="space-y-1 pr-4">
               <div class="flex flex-wrap items-center gap-2">
-                <h4 class="font-bold text-xs text-slate-900">${deck.title}</h4>
-                <span class="text-[10px] bg-teal-50 text-teal-700 font-semibold px-2 py-0.5 rounded-md border border-teal-100">${deck.sourceType}</span>
-                <span class="text-[10px] bg-slate-100 text-slate-800 font-semibold px-2 py-0.5 rounded-md border border-slate-200">Confidence: ${deckConf}%</span>
+                <h4 class="font-bold text-xs text-slate-900">${escapeHtml(deck.title)}</h4>
+                <span class="text-[10px] bg-teal-50 text-teal-700 font-semibold px-2 py-0.5 rounded-md border border-teal-100">${escapeHtml(deck.sourceType)}</span>
+                <span class="text-[10px] bg-slate-100 text-slate-800 font-semibold px-2 py-0.5 rounded-md border border-slate-200">${mastery}% mastered</span>
               </div>
-              <p class="text-[11px] text-slate-500">${deck.sourceDetail}</p>
-              <p class="text-[10px] text-slate-400">${(deck.cards || []).length} Flashcards &bull; Created ${deck.date}</p>
+              <p class="text-[11px] text-slate-500">${escapeHtml(deck.sourceDetail)}</p>
+              <p class="text-[10px] text-slate-400">${cards.length} cards · ${dueCount} due · Created ${escapeHtml(deck.date)}</p>
             </div>
-            <div class="flex items-center space-x-1.5 shrink-0 self-end sm:self-center">
-              <button onclick="startStudySession(${idx})" class="bg-teal-600 hover:bg-teal-700 text-white font-semibold text-xs px-4 py-2 rounded-xl transition-all shadow-sm">
-                Study ⚡
-              </button>
-              <button onclick="deleteDeck(${idx})" class="text-slate-400 hover:text-red-600 hover:bg-slate-100 p-2 rounded-xl transition-all" title="Delete Deck">
-                🗑️
-              </button>
+            <div class="deck-actions">
+              <button onclick="startStudySession(${index}, true)">Study all</button>
+              <button onclick="startStudySession(${index})">${dueCount ? `Study ${dueCount} due` : 'No cards due'}</button>
             </div>
           </div>
         `;
       }).join('');
-    }
-
-    function deleteDeck(index) {
-      if (confirm('Are you sure you want to delete this deck?')) {
-        savedDecks.splice(index, 1);
-        localStorage.setItem('synapse_decks', JSON.stringify(savedDecks));
-        updateDashboardStats();
-        renderSavedDecksList();
-        showToast('Deck deleted', 'info');
+      if (savedDecks.length > 4) {
+        container.innerHTML += '<button onclick="switchTab(\'library\')" class="text-xs font-semibold text-teal-700 hover:underline">View all decks →</button>';
       }
     }
 
-    function startSmartReview() {
-      if (savedDecks.length === 0) {
-        showToast('No saved decks available for review.', 'warning');
+    function renderLibrary() {
+      const container = document.getElementById('library-decks-list');
+      if (!container) return;
+      const query = (document.getElementById('library-search')?.value || '').trim().toLowerCase();
+      const visibleDecks = savedDecks
+        .map((deck, index) => ({ deck, index }))
+        .filter(({ deck }) => {
+          const matchesQuery = !query || `${deck.title} ${deck.sourceDetail}`.toLowerCase().includes(query);
+          const matchesFilter = libraryFilter === 'all' || deck.cards.some(isCardDue);
+          return matchesQuery && matchesFilter;
+        });
+
+      if (!visibleDecks.length) {
+        container.innerHTML = `<div class="empty-state">${savedDecks.length ? 'No decks match this search or filter.' : 'Your library is empty. Upload a PDF to create your first deck.'}</div>`;
         return;
       }
-      let dueCards = [];
-      savedDecks.forEach(deck => {
-        (deck.cards || []).forEach(card => {
-          if ((card.repetition_level || 0) < 2) {
-            dueCards.push(card);
-          }
-        });
-      });
 
-      if (dueCards.length === 0) {
-        dueCards = savedDecks[0].cards || [];
-        showToast('All cards mastered! Starting general review session. 🔥', 'info');
-      } else {
-        showToast(`Starting Smart Review with ${dueCards.length} due cards! 🔥`, 'success');
+      container.innerHTML = visibleDecks.map(({ deck, index }) => {
+        const cards = deck.cards || [];
+        const dueCount = cards.filter(isCardDue).length;
+        const mastery = cards.length ? Math.round(cards.filter(card => (card.repetition_level || 0) >= 2).length * 100 / cards.length) : 0;
+        return `
+          <article class="library-deck">
+            <div>
+              <h3>${escapeHtml(deck.title)}</h3>
+              <p>${escapeHtml(deck.sourceDetail)} · ${escapeHtml(deck.date)}</p>
+            </div>
+            <div class="deck-meta"><span>${cards.length} cards · ${dueCount} due</span><strong>${mastery}% mastered</strong></div>
+            <div class="deck-actions">
+              <button onclick="startStudySession(${index}, true)">Study all</button>
+              <button onclick="startStudySession(${index})">${dueCount ? 'Study due' : 'Review all'}</button>
+              <button onclick="exportDeckToCSV(${index})">Export</button>
+              <button onclick="deleteDeck(${index})" aria-label="Delete ${escapeHtml(deck.title)}">Delete</button>
+            </div>
+          </article>
+        `;
+      }).join('');
+    }
+
+    function setLibraryFilter(filter, button) {
+      libraryFilter = filter;
+      document.querySelectorAll('.filter-chip').forEach(chip => chip.classList.remove('is-active'));
+      button.classList.add('is-active');
+      renderLibrary();
+    }
+
+    function getWeakCards() {
+      return savedDecks.flatMap((deck, deckIndex) =>
+        (deck.cards || []).filter(isCardWeak).map(card => ({ deck, deckIndex, card }))
+      );
+    }
+
+    function renderWeakSpots() {
+      const container = document.getElementById('weak-cards-list');
+      if (!container) return;
+      const weakCards = getWeakCards();
+      safeSetText('weak-card-count', weakCards.length);
+      if (!weakCards.length) {
+        container.innerHTML = '<div class="empty-state">No weak cards yet. Create a deck and review a few cards to reveal what needs practice.</div>';
+        return;
       }
+      container.innerHTML = weakCards.slice(0, 30).map(({ deck, deckIndex, card }) => `
+        <article class="weak-card">
+          <div><h3>${escapeHtml(card.question)}</h3><p>${escapeHtml(deck.title)} · ${escapeHtml(card.answer.slice(0, 130))}</p></div>
+          <button onclick="startWeakCard(${deckIndex}, '${escapeHtml(card.id)}')">Practice this</button>
+        </article>
+      `).join('');
+    }
 
-      currentDeckIndex = null;
-      currentDeckCards = dueCards;
+    function startWeakCard(deckIndex, cardId) {
+      const deck = savedDecks[deckIndex];
+      const card = deck?.cards.find(item => item.id === cardId);
+      if (!card) return;
+      currentDeckIndex = deckIndex;
+      currentDeckCards = [card];
       currentIndex = 0;
-      safeSetText('current-deck-title', 'Smart Review (Due Cards 🔥)');
+      safeSetText('current-deck-title', `${deck.title} · Focus review`);
       switchTab('study');
       renderCard();
     }
 
-    function startStudySession(index) {
+    async function deleteDeck(index) {
+      const deck = savedDecks[index];
+      if (!deck || !confirm(`Delete "${deck.title}" and its cards? This cannot be undone.`)) return;
+      try {
+        await apiRequest(`/api/decks/${encodeURIComponent(deck.id)}`, { method: 'DELETE' });
+        savedDecks.splice(index, 1);
+        updateDashboardStats();
+        renderSavedDecksList();
+        renderLibrary();
+        renderWeakSpots();
+        showToast('Deck deleted.', 'info');
+      } catch (error) {
+        showToast(`Could not delete deck: ${error.message}`, 'error');
+      }
+    }
+
+    function startSmartReview() {
+      const dueCards = savedDecks.flatMap(deck => deck.cards || []).filter(isCardDue);
+      if (!dueCards.length) {
+        showToast(savedDecks.length ? 'You are all caught up. Come back when your next cards are due.' : 'Create a deck to start your first review.', 'info');
+        return;
+      }
+      currentDeckIndex = null;
+      currentDeckCards = dueCards;
+      currentIndex = 0;
+      safeSetText('current-deck-title', `Smart review · ${dueCards.length} due`);
+      switchTab('study');
+      renderCard();
+    }
+
+    function startStudySession(index, forceAll = false) {
       stopSpeech();
       currentDeckIndex = index;
       const deck = savedDecks[index];
-      currentDeckCards = deck.cards || [];
+      if (!deck) return;
+      const cards = deck.cards || [];
+      currentDeckCards = forceAll ? cards : cards.filter(isCardDue);
+      if (!currentDeckCards.length) {
+        showToast(`No cards are due in "${deck.title}". You can still choose Study all.`, 'info');
+        return;
+      }
+      document.querySelectorAll('#tab-study > :not(#study-complete)').forEach(element => element.classList.remove('hidden'));
+      document.getElementById('study-complete').classList.add('hidden');
       currentIndex = 0;
-      safeSetText('current-deck-title', deck.title);
+      safeSetText('current-deck-title', `${deck.title} · ${forceAll ? 'All cards' : 'Due review'}`);
+      switchTab('study');
+      renderCard();
+    }
+
+    function studyCurrentDeckAgain() {
+      if (currentDeckIndex !== null) {
+        startStudySession(currentDeckIndex, true);
+        return;
+      }
+      if (!currentDeckCards.length) {
+        startSmartReview();
+        return;
+      }
+      document.querySelectorAll('#tab-study > :not(#study-complete)').forEach(element => element.classList.remove('hidden'));
+      document.getElementById('study-complete').classList.add('hidden');
+      currentIndex = 0;
       switchTab('study');
       renderCard();
     }
@@ -1059,46 +1809,42 @@
     function switchTab(tabName) {
       stopSpeech();
       closeAiModal();
-      const tabDashboard = document.getElementById('tab-dashboard');
-      const tabGenerator = document.getElementById('tab-generator');
-      const tabStudy = document.getElementById('tab-study');
-      const tabQuiz = document.getElementById('tab-quiz');
-      const navDashboard = document.getElementById('nav-dashboard');
-      const navGenerator = document.getElementById('nav-generator');
+      const pages = ['dashboard', 'generator', 'study', 'quiz', 'library', 'weak-spots', 'profile'];
+      pages.forEach(page => document.getElementById(`tab-${page}`)?.classList.toggle('hidden', page !== tabName));
 
-      if (tabDashboard) tabDashboard.classList.add('hidden');
-      if (tabGenerator) tabGenerator.classList.add('hidden');
-      if (tabStudy) tabStudy.classList.add('hidden');
-      if (tabQuiz) tabQuiz.classList.add('hidden');
-
-      if (navDashboard) navDashboard.className = 'w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all text-left';
-      if (navGenerator) navGenerator.className = 'w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-900 transition-all text-left';
+      const selectedNav = tabName === 'quiz' ? 'weak-spots' : tabName;
+      ['dashboard', 'generator', 'library', 'weak-spots', 'profile'].forEach(nav => {
+        document.getElementById(`nav-${nav}`)?.classList.toggle('is-active', nav === selectedNav);
+      });
+      const titles = {
+        dashboard: 'Today', generator: 'Create a deck', study: 'Study session',
+        quiz: 'Focused quiz', library: 'Library', 'weak-spots': 'Weak spots', profile: 'Profile'
+      };
+      safeSetText('page-title', titles[tabName] || 'Today');
 
       if (tabName === 'dashboard') {
-        if (tabDashboard) tabDashboard.classList.remove('hidden');
-        if (navDashboard) navDashboard.className = 'w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-900 transition-all text-left';
         updateDashboardStats();
         renderSavedDecksList();
-      } else if (tabName === 'generator') {
-        if (tabGenerator) tabGenerator.classList.remove('hidden');
-        if (navGenerator) navGenerator.className = 'w-full flex items-center space-x-3 px-3 py-2.5 rounded-xl text-xs font-semibold bg-slate-100 text-slate-900 transition-all text-left';
-      } else if (tabName === 'study') {
-        if (tabStudy) tabStudy.classList.remove('hidden');
-      } else if (tabName === 'quiz') {
-        if (tabQuiz) tabQuiz.classList.remove('hidden');
+      } else if (tabName === 'library') {
+        renderLibrary();
+      } else if (tabName === 'weak-spots') {
+        renderWeakSpots();
+      } else if (tabName === 'profile') {
+        document.getElementById('profile-full-name').value = profileData?.full_name || '';
+        document.getElementById('profile-username').value = profileData?.username || '';
+        document.getElementById('profile-birthday').value = profileData?.birthday || '';
+        safeSetText('profile-email-display', authSession?.user?.email || '');
       }
     }
 
     async function handleGenerateAndSave() {
       const titleInput = document.getElementById('deckTitle');
-      const contentInput = document.getElementById('lectureContent');
       const pdfInput = document.getElementById('pdfFile');
       const searchInput = document.getElementById('enableSearch');
       const countInput = document.getElementById('cardCount');
       const btn = document.getElementById('generateBtn');
 
       const customTitle = titleInput ? titleInput.value.trim() : '';
-      const lectureContent = contentInput ? contentInput.value.trim() : '';
       const pdfFile = pdfInput ? pdfInput.files[0] : null;
       const enableSearch = searchInput ? searchInput.checked : false;
       const cardCount = countInput ? countInput.value : '10';
@@ -1109,72 +1855,39 @@
         return;
       }
 
-      if (currentCreationMode === 'upload' && !pdfFile) {
+      if (!pdfFile) {
         showToast('Please upload a PDF file.', 'warning');
-        return;
-      }
-      if (currentCreationMode === 'chat' && !lectureContent) {
-        showToast('Please provide notes or topics for the AI.', 'warning');
         return;
       }
 
       if (btn) {
         btn.disabled = true;
-        btn.textContent = 'Generating & Saving... 💾';
+        btn.textContent = 'Building your deck…';
       }
 
       try {
-        let cardsData = [];
-
-        if (currentCreationMode === 'upload') {
-          const formData = new FormData();
-          formData.append('pdfFile', pdfFile);
-          formData.append('enableSearch', enableSearch);
-          formData.append('cardCount', cardCount);
-          const res = await fetch('/api/upload-pdf', { method: 'POST', body: formData });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || 'Generation failed');
-          cardsData = data.flashcards || data.cards || [];
-        } else {
-          const res = await fetch('/api/generate', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ lectureContent, enableSearch, cardCount })
-          });
-          const data = await res.json();
-          if (!res.ok) throw new Error(data.error || 'Generation failed');
-          cardsData = data.flashcards || data.cards || [];
-        }
-
-        if (cardsData.length === 0) {
-          throw new Error('No flashcards were returned by the generator.');
-        }
-
-        let sourceInfo = currentCreationMode === 'upload' ? `PDF File: ${pdfFile.name}` : `AI Chat / Notes`;
-
-        const newDeck = {
-          id: Date.now(),
-          title: customTitle,
-          sourceType: currentCreationMode === 'upload' ? 'PDF Upload' : 'AI Chat Notes',
-          sourceDetail: sourceInfo,
-          date: new Date().toLocaleDateString(),
-          cards: cardsData,
-          goodEasyReviews: 0,
-          totalReviews: 0
-        };
-
-        savedDecks.unshift(newDeck);
-        localStorage.setItem('synapse_decks', JSON.stringify(savedDecks));
+        const formData = new FormData();
+        formData.append('pdfFile', pdfFile);
+        formData.append('title', customTitle);
+        formData.append('enableSearch', enableSearch);
+        formData.append('cardCount', cardCount);
+        const result = await apiRequest('/api/upload-pdf', { method: 'POST', body: formData });
+        const newDeck = normalizeDeck(result.deck);
+        if (!newDeck.cards.length) throw new Error('No flashcards were returned by the generator.');
 
         if (titleInput) titleInput.value = '';
-        if (contentInput) contentInput.value = '';
         if (pdfInput) pdfInput.value = '';
 
+        await loadUserData();
         updateDashboardStats();
         renderSavedDecksList();
-        showToast(`Deck "${customTitle}" generated & saved! 🚀`, 'success');
-        addXP(50); // Bonus XP for creating a deck!
-        startStudySession(0);
+        renderLibrary();
+        renderWeakSpots();
+        showToast(`"${customTitle}" is ready to study.`, 'success');
+        addXP(50);
+        const newDeckIndex = savedDecks.findIndex(deck => deck.id === newDeck.id);
+        if (newDeckIndex < 0) throw new Error('The new deck was saved, but could not be loaded into your library. Refresh to find it.');
+        startStudySession(newDeckIndex, true);
       } catch (err) {
         showToast('Error: ' + err.message, 'error');
       } finally {
@@ -1182,29 +1895,6 @@
           btn.disabled = false;
           btn.textContent = 'Generate & Save Deck 💾';
         }
-      }
-    }
-
-    function setCreationMode(mode) {
-      currentCreationMode = mode;
-      const uploadBox = document.getElementById('input-container-upload');
-      const chatBox = document.getElementById('input-container-chat');
-      
-      const uploadBtn = document.getElementById('mode-btn-upload');
-      const chatBtn = document.getElementById('mode-btn-chat');
-
-      uploadBox.classList.add('hidden');
-      chatBox.classList.add('hidden');
-
-      uploadBtn.className = 'py-2.5 text-xs font-medium rounded-lg text-slate-500 hover:text-slate-900 transition-all';
-      chatBtn.className = 'py-2.5 text-xs font-medium rounded-lg text-slate-500 hover:text-slate-900 transition-all';
-
-      if (mode === 'upload') {
-        uploadBox.classList.remove('hidden');
-        uploadBtn.className = 'py-2.5 text-xs font-semibold rounded-lg bg-white text-slate-900 shadow-2xs transition-all';
-      } else if (mode === 'chat') {
-        chatBox.classList.remove('hidden');
-        chatBtn.className = 'py-2.5 text-xs font-semibold rounded-lg bg-white text-slate-900 shadow-2xs transition-all';
       }
     }
 
@@ -1281,92 +1971,83 @@
     }
 
     function closeAiModal() {
-      document.getElementById('aiModal').classList.add('hidden');
+      document.getElementById('explanation-panel').classList.add('hidden');
+      document.body.classList.remove('assistant-panel-open');
     }
 
     async function verifyWithTavily() {
       const card = currentDeckCards[currentIndex];
-      const modal = document.getElementById('aiModal');
-      const content = document.getElementById('aiModalContent');
+      if (!card) return;
+      const panel = document.getElementById('explanation-panel');
+      const content = document.getElementById('explanation-thread');
 
-      modal.classList.remove('hidden');
-      content.innerHTML = `<div class="p-3 bg-slate-100 text-slate-800 rounded-lg"><span class="animate-pulse">🌐 Tavily AI is searching live web references for "${card.question}"...</span></div>`;
+      panel.classList.remove('hidden');
+      document.body.classList.add('assistant-panel-open');
+      document.getElementById('explanation-question').textContent = card.question;
+      content.replaceChildren();
+      const loading = document.createElement('p');
+      loading.className = 'explanation-loading';
+      loading.textContent = 'Searching trusted sources…';
+      content.appendChild(loading);
 
       try {
-        const res = await fetch('/api/verify-tavily', {
+        const data = await apiRequest('/api/verify-tavily', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ question: card.question, answer: card.answer })
         });
-
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-
         const sources = data.sources || [];
         if (sources.length === 0) {
-          content.innerHTML = `<div class="p-3 bg-slate-50 text-slate-600 rounded-lg">No live sources found.</div>`;
+          loading.textContent = 'No live sources found for this concept.';
           return;
         }
 
-        let sourcesHtml = sources.map(s => `
-          <div class="p-3 bg-white border border-slate-200 rounded-xl shadow-2xs space-y-1 text-left">
-            <a href="${s.url}" target="_blank" class="text-xs font-bold text-slate-900 hover:underline flex items-center justify-between">
-              <span>${s.title}</span> 🔗
-            </a>
-            <p class="text-[11px] text-slate-500">${s.snippet}</p>
-          </div>
-        `).join('');
-
-        content.innerHTML = `
-          <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
-            <p class="font-bold text-xs text-slate-900 flex items-center justify-between">
-              <span>🌐 Tavily Live Verified Sources:</span>
-              <span class="text-[10px] bg-slate-200 text-slate-800 px-2 py-0.5 rounded font-mono">Real-time Web</span>
-            </p>
-            <div class="space-y-2 mt-2">${sourcesHtml}</div>
-          </div>
-        `;
-      } catch (err) {
-        content.innerHTML = `<div class="p-3.5 bg-slate-100 text-slate-900 rounded-xl">Tavily Search Error: ${err.message}</div>`;
+        loading.remove();
+        sources.forEach(source => {
+          const item = document.createElement('article');
+          item.className = 'explanation-source';
+          const link = document.createElement('a');
+          link.href = source.url;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.textContent = `${source.title} ↗`;
+          const snippet = document.createElement('p');
+          snippet.textContent = source.snippet;
+          item.append(link, snippet);
+          content.appendChild(item);
+        });
+      } catch (error) {
+        loading.className = 'explanation-error';
+        loading.textContent = `Live research could not be completed: ${error.message}`;
       }
     }
 
     async function startWeaknessQuiz() {
-      let weakCards = [];
-      savedDecks.forEach(deck => {
-        (deck.cards || []).forEach(card => {
-          if ((card.repetition_level || 0) < 2) {
-            weakCards.push(card);
-          }
-        });
-      });
-
-      if (weakCards.length === 0) {
-        showToast('No weak cards found! You are mastering everything.', 'info');
+      const weakCards = getWeakCards().map(({ card }) => card);
+      if (!weakCards.length) {
+        showToast('No weak cards yet. Review some cards to find concepts to strengthen.', 'info');
         return;
       }
 
       switchTab('quiz');
       const box = document.getElementById('quiz-container-box');
-      box.innerHTML = `<div class="text-center py-12 text-slate-700 font-medium"><span class="animate-pulse">🎯 Nemotron AI is building your custom Weakness Quiz page...</span></div>`;
+      box.textContent = 'Building a short quiz from your weak spots…';
 
       try {
-        const res = await fetch('/api/weakness-quiz', {
+        const data = await apiRequest('/api/weakness-quiz', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ weakCards: weakCards.slice(0, 5) })
         });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error);
-
         currentQuiz = {
           questions: data.quizQuestions || [],
-          index: 0
+          index: 0,
+          retestCards: weakCards.slice(0, 5)
         };
-
+        if (currentQuiz.questions.length !== 3) {
+          throw new Error('The AI did not return a complete quiz.');
+        }
         renderQuizPage();
-      } catch (err) {
-        box.innerHTML = `<div class="p-4 bg-slate-100 text-slate-900 rounded-xl text-center">Error loading quiz: ${err.message}</div>`;
+      } catch (error) {
+        box.textContent = `Could not build your quiz: ${error.message}`;
       }
     }
 
@@ -1376,8 +2057,11 @@
         box.innerHTML = `
           <div class="text-center py-12 space-y-4">
             <h2 class="text-2xl font-bold text-slate-900">🎉 Quiz Page Completed!</h2>
-            <p class="text-xs text-slate-500">You successfully targeted your weak spots with Nemotron AI.</p>
-            <button onclick="switchTab('dashboard')" class="bg-teal-600 hover:bg-teal-700 text-white font-medium px-5 py-2.5 rounded-xl text-xs transition-all shadow-sm">Return to Dashboard</button>
+            <p class="text-xs text-slate-500">You worked through your weak spots. Try recalling the original cards now.</p>
+            <div class="flex flex-wrap justify-center gap-2">
+              <button onclick="startQuizRetest()" class="button-primary">Retest these concepts</button>
+              <button onclick="switchTab('dashboard')" class="button-secondary">Back to today</button>
+            </div>
           </div>
         `;
         return;
@@ -1390,10 +2074,10 @@
             <span class="text-[11px] font-bold text-slate-900 uppercase tracking-wider">Weakness Hunter Quiz</span>
             <span class="text-[11px] font-semibold text-slate-400">Question ${currentQuiz.index + 1} of ${currentQuiz.questions.length}</span>
           </div>
-          <h3 class="text-sm font-bold text-slate-900">${q.question}</h3>
+          <h3 class="text-sm font-bold text-slate-900">${escapeHtml(q.question)}</h3>
           <div class="space-y-2.5" id="quiz-options-list">
-            ${(q.options || []).map(opt => `
-              <button onclick="handleQuizSelection(this, '${opt.replace(/'/g, "\\'")}', '${q.correctAnswer.replace(/'/g, "\\'")}')" class="w-full text-left text-xs p-3.5 bg-slate-50 hover:bg-slate-100 border border-border rounded-xl transition-all font-medium text-slate-800">${opt}</button>
+            ${(q.options || []).map((opt, index) => `
+              <button data-option-index="${index}" class="quiz-option">${escapeHtml(opt)}</button>
             `).join('')}
           </div>
           <div id="quiz-correction-box" class="hidden p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-xs space-y-1">
@@ -1405,6 +2089,23 @@
           </div>
         </div>
       `;
+      box.querySelectorAll('.quiz-option').forEach(button => {
+        const option = q.options[Number(button.dataset.optionIndex)];
+        button.addEventListener('click', () => handleQuizSelection(button, option, q.correctAnswer));
+      });
+    }
+
+    function startQuizRetest() {
+      if (!currentQuiz.retestCards?.length) {
+        showToast('There are no original cards to retest.', 'warning');
+        return;
+      }
+      currentDeckIndex = null;
+      currentDeckCards = [...currentQuiz.retestCards];
+      currentIndex = 0;
+      safeSetText('current-deck-title', 'Weak spot retest');
+      switchTab('study');
+      renderCard();
     }
 
     function handleQuizSelection(btnElement, selected, correct) {
@@ -1424,14 +2125,15 @@
 
       const correctionBox = document.getElementById('quiz-correction-box');
       const correctionText = document.getElementById('quiz-correction-text');
+      const explanation = currentQuiz.questions[currentQuiz.index]?.explanation || '';
 
       if (isCorrect) {
         correctionBox.className = 'p-3.5 bg-emerald-50/60 border border-emerald-200 rounded-xl text-xs space-y-1';
-        correctionText.textContent = 'Spot on! You selected the correct answer.';
-        addXP(20); // Reward XP for correct quiz answer
+        correctionText.textContent = `Exactly right. ${explanation}`;
+        addXP(20);
       } else {
         correctionBox.className = 'p-3.5 bg-red-50/60 border border-red-200 rounded-xl text-xs space-y-1';
-        correctionText.textContent = `Not quite right. Hint: Re-evaluate the options that focus on the core foundational rule.`;
+        correctionText.textContent = `Not quite. ${explanation}`;
       }
 
       correctionBox.classList.remove('hidden');

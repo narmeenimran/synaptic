@@ -1,4 +1,5 @@
-import { generateAndSaveFlashcards } from './src/flashcards.js';
+import 'dotenv/config';
+import { generateFlashcards } from './src/flashcards.js';
 
 const sampleLecture = `
 Photosynthesis is the process used by plants to convert light energy into chemical energy. 
@@ -7,5 +8,6 @@ The overall equation combines carbon dioxide and water using light energy to pro
 There are two main stages: Light-dependent reactions and the Calvin Cycle (light-independent reactions).
 `;
 
-console.log('🚀 Running Synapse AI Flashcard Generator Test...\n');
-await generateAndSaveFlashcards(sampleLecture);
+console.log('Running Synapse AI flashcard generation check...\n');
+const cards = await generateFlashcards(sampleLecture, false, 5);
+console.log(`Generated ${cards.length} study cards.`);
