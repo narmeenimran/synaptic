@@ -36,7 +36,7 @@ test('generation requests structured JSON and accepts escaped card text', async 
   assert.equal(generated[0].question, cards[0].question);
 });
 
-test('generation requests the selected count in one call with a bounded prompt and token budget', async t => {
+test('generation uses a bounded prompt and dynamically sized token budget', async t => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.NEBIUS_API_KEY;
   process.env.NEBIUS_API_KEY = 'test-key';
@@ -63,7 +63,7 @@ test('generation requests the selected count in one call with a bounded prompt a
 
   assert.equal(generated.length, 20);
   assert.equal(requestBody.model, 'nvidia/Nemotron-3_5-Lightning');
-  assert.equal(requestBody.max_tokens, 3000);
+  assert.equal(requestBody.max_tokens, 5000);
   assert.ok(requestBody.messages[1].content.length < 21000);
   assert.match(requestBody.messages[1].content, /Create exactly 20 distinct flashcards/);
 });
@@ -132,16 +132,56 @@ test('generation accepts 30 and 100,000 character inputs and card counts from 1 
   }
 });
 
-test('generation rejects incomplete output without making additional slow AI calls', async t => {
+test('generation fills a 17-of-20 response by requesting only the missing cards', async t => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.NEBIUS_API_KEY;
+  process.env.NEBIUS_API_KEY = 'test-key';
+  const requestBodies = [];
+  const firstBatch = Array.from({ length: 17 }, (_, index) => ({
+    question: `Question ${index + 1}`,
+    answer: `Answer ${index + 1}`
+  }));
+  const remainingCards = Array.from({ length: 3 }, (_, index) => ({
+    question: `Question ${index + 18}`,
+    answer: `Answer ${index + 18}`
+  }));
+  globalThis.fetch = async (_url, options) => {
+    requestBodies.push(JSON.parse(options.body));
+    const cards = requestBodies.length === 1 ? firstBatch : remainingCards;
+    return new Response(JSON.stringify({
+      choices: [{ message: { content: JSON.stringify({ cards }) } }]
+    }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.NEBIUS_API_KEY;
+    else process.env.NEBIUS_API_KEY = originalApiKey;
+  });
+
+  const cards = await generateFlashcards(
+    'ATP stores energy for cellular processes, and it can transfer a phosphate group to other molecules.',
+    false,
+    20
+  );
+
+  assert.equal(cards.length, 20);
+  assert.equal(requestBodies.length, 2);
+  assert.match(requestBodies[1].messages[1].content, /Create exactly 3 distinct flashcards/);
+  assert.match(requestBodies[1].messages[1].content, /Question 17/);
+  assert.equal(requestBodies[1].max_tokens, 750);
+});
+
+test('generation limits retries and reports a stable error if the AI keeps under-delivering', async t => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.NEBIUS_API_KEY;
   process.env.NEBIUS_API_KEY = 'test-key';
   let fetchCalls = 0;
-  globalThis.fetch = async (_url, options) => {
+  globalThis.fetch = async () => {
     fetchCalls++;
     const cards = Array.from({ length: 2 }, (_, index) => ({
-      question: `Unique concept ${index + 1}`,
-      answer: `Answer ${index + 1}`
+      question: `Question ${fetchCalls}-${index + 1}`,
+      answer: `Answer ${fetchCalls}-${index + 1}`
     }));
     return new Response(JSON.stringify({
       choices: [{ message: { content: JSON.stringify({ cards }) } }]
@@ -160,13 +200,12 @@ test('generation rejects incomplete output without making additional slow AI cal
       false,
       20
     ),
-    /The AI returned 2 of 20 requested flashcards/
+    /could not complete all requested cards after several attempts/
   );
-
-  assert.equal(fetchCalls, 1);
+  assert.equal(fetchCalls, 3);
 });
 
-test('generation safely rejects raw text responses as a clean incomplete response', async t => {
+test('generation safely rejects repeated raw text responses after bounded retries', async t => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.NEBIUS_API_KEY;
   process.env.NEBIUS_API_KEY = 'test-key';
@@ -190,7 +229,7 @@ test('generation safely rejects raw text responses as a clean incomplete respons
       false,
       5
     ),
-    /The AI returned 0 of 5 requested flashcards/
+    /could not complete all requested cards after several attempts/
   );
-  assert.equal(fetchCalls, 1);
+  assert.equal(fetchCalls, 3);
 });

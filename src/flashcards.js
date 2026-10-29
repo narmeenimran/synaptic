@@ -109,27 +109,32 @@ export async function generateFlashcards(lectureContent, enableSearch = false, c
   }
 
   const searchContext = enableSearch ? await searchContextFor(lectureContent) : '';
-  const candidates = await requestFlashcards(lectureContent.slice(0, 20000), count, searchContext);
-  const cards = validateCards(candidates);
+  const source = lectureContent.slice(0, 20000);
   const questions = new Set();
   const uniqueCards = [];
-  for (const card of cards) {
-    if (uniqueCards.length >= count) break;
-    const key = card.question.toLocaleLowerCase();
-    if (questions.has(key)) continue;
-    questions.add(key);
-    uniqueCards.push(card);
+
+  for (let attempt = 0; attempt < 3 && uniqueCards.length < count; attempt++) {
+    const neededCount = count - uniqueCards.length;
+    const candidates = await requestFlashcards(source, neededCount, searchContext, uniqueCards);
+    for (const card of validateCards(candidates)) {
+      if (uniqueCards.length >= count) break;
+      const key = card.question.toLocaleLowerCase();
+      if (questions.has(key)) continue;
+      questions.add(key);
+      uniqueCards.push(card);
+    }
   }
+
   if (uniqueCards.length !== count) {
     throw Object.assign(
-      new Error(`The AI returned ${uniqueCards.length} of ${count} requested flashcards. Please try again or use shorter study material.`),
+      new Error('AI generation could not complete all requested cards after several attempts. Please try again or use shorter study material.'),
       { status: 502 }
     );
   }
   return uniqueCards;
 }
 
-async function requestFlashcards(lectureContent, cardCount, searchContext) {
+async function requestFlashcards(lectureContent, cardCount, searchContext, existingCards) {
   const model = process.env.NEBIUS_MODEL || DEFAULT_MODEL;
   const baseUrl = (process.env.NEBIUS_BASE_URL || NEBIUS_BASE_URL).replace(/\/+$/, '');
   let response;
@@ -140,7 +145,7 @@ async function requestFlashcards(lectureContent, cardCount, searchContext) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${process.env.NEBIUS_API_KEY}`
       },
-      signal: AbortSignal.timeout(45000),
+      signal: AbortSignal.timeout(15000),
       body: JSON.stringify({
         model,
         reasoning_effort: 'none',
@@ -152,11 +157,11 @@ async function requestFlashcards(lectureContent, cardCount, searchContext) {
           },
           {
             role: 'user',
-            content: `Create exactly ${cardCount} distinct flashcards. Favor concise questions and answers. Do not invent claims unsupported by the material.\n${searchContext ? `Use this additional web context only when relevant:\n${searchContext}\n` : ''}Study material:\n${lectureContent.trim()}`
+            content: `Create exactly ${cardCount} distinct flashcards. Do not repeat these existing questions: ${JSON.stringify(existingCards.map(card => card.question))}. Favor concise questions and answers. Do not invent claims unsupported by the material.\n${searchContext ? `Use this additional web context only when relevant:\n${searchContext}\n` : ''}Study material:\n${lectureContent.trim()}`
           }
         ],
         temperature: 0.5,
-        max_tokens: cardCount * 150
+        max_tokens: cardCount * 250
       })
     });
   } catch {
