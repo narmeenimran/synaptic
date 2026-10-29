@@ -172,7 +172,7 @@ test('generation fills a 17-of-20 response by requesting only the missing cards'
   assert.equal(requestBodies[1].max_tokens, 750);
 });
 
-test('generation limits retries and reports a stable error if the AI keeps under-delivering', async t => {
+test('generation fills a deck with study-material fallback cards if retries keep under-delivering', async t => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.NEBIUS_API_KEY;
   process.env.NEBIUS_API_KEY = 'test-key';
@@ -194,18 +194,16 @@ test('generation limits retries and reports a stable error if the AI keeps under
     else process.env.NEBIUS_API_KEY = originalApiKey;
   });
 
-  await assert.rejects(
-    generateFlashcards(
-      'ATP stores energy for cellular processes, and it can transfer a phosphate group to other molecules.',
-      false,
-      20
-    ),
-    /could not complete all requested cards after several attempts/
+  const cards = await generateFlashcards(
+    'ATP stores energy for cellular processes, and it can transfer a phosphate group to other molecules.',
+    false,
+    20
   );
-  assert.equal(fetchCalls, 3);
+  assert.equal(cards.length, 20);
+  assert.equal(fetchCalls, 2);
 });
 
-test('generation safely rejects repeated raw text responses after bounded retries', async t => {
+test('generation fills a deck from study material when AI returns raw text', async t => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.NEBIUS_API_KEY;
   process.env.NEBIUS_API_KEY = 'test-key';
@@ -223,13 +221,53 @@ test('generation safely rejects repeated raw text responses after bounded retrie
     else process.env.NEBIUS_API_KEY = originalApiKey;
   });
 
-  await assert.rejects(
-    generateFlashcards(
-      'ATP stores energy for cellular processes, and it can transfer a phosphate group to other molecules.',
-      false,
-      5
-    ),
-    /could not complete all requested cards after several attempts/
+  const cards = await generateFlashcards(
+    'ATP stores energy for cellular processes, and it can transfer a phosphate group to other molecules.',
+    false,
+    5
   );
-  assert.equal(fetchCalls, 3);
+  assert.equal(cards.length, 5);
+  assert.equal(fetchCalls, 2);
+  assert.ok(cards.every(card => card.question && card.answer));
+});
+
+test('generation produces the selected count from source text when the AI service is unavailable', async t => {
+  const originalFetch = globalThis.fetch;
+  const originalApiKey = process.env.NEBIUS_API_KEY;
+  process.env.NEBIUS_API_KEY = 'test-key';
+  globalThis.fetch = async () => {
+    throw new Error('provider is offline');
+  };
+
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    if (originalApiKey === undefined) delete process.env.NEBIUS_API_KEY;
+    else process.env.NEBIUS_API_KEY = originalApiKey;
+  });
+
+  const cards = await generateFlashcards(
+    'ATP stores energy for cellular processes, and it can transfer a phosphate group to other molecules.',
+    false,
+    20
+  );
+  assert.equal(cards.length, 20);
+  assert.ok(cards.every(card => card.question && card.answer));
+});
+
+test('generation uses source-text fallback when the AI API key is missing', async t => {
+  const originalApiKey = process.env.NEBIUS_API_KEY;
+  delete process.env.NEBIUS_API_KEY;
+
+  t.after(() => {
+    if (originalApiKey === undefined) delete process.env.NEBIUS_API_KEY;
+    else process.env.NEBIUS_API_KEY = originalApiKey;
+  });
+
+  const cards = await generateFlashcards(
+    'ATP stores energy for cellular processes, and it can transfer a phosphate group to other molecules.',
+    false,
+    10
+  );
+  assert.equal(cards.length, 10);
+  assert.ok(cards.every(card => card.question && card.answer));
 });

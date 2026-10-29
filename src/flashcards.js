@@ -35,6 +35,53 @@ function validateCards(cards) {
   });
 }
 
+function splitStudyMaterial(content) {
+  const sentences = content
+    .split(/(?<=[.!?])\s+|\r?\n+/)
+    .map(sentence => sentence.trim())
+    .filter(Boolean);
+  const passages = [];
+
+  for (const sentence of sentences.length ? sentences : [content.trim()]) {
+    let remaining = sentence;
+    while (remaining.length > 500) {
+      let splitAt = remaining.lastIndexOf(' ', 500);
+      if (splitAt < 1) splitAt = 500;
+      passages.push(remaining.slice(0, splitAt).trim());
+      remaining = remaining.slice(splitAt).trim();
+    }
+    if (remaining) passages.push(remaining);
+  }
+
+  return passages;
+}
+
+function createFallbackCards(content, count, existingCards) {
+  const passages = splitStudyMaterial(content);
+  const questionPrompts = [
+    'What does the study material state?',
+    'Which point is described in the study material?',
+    'What detail should you recall from the study material?'
+  ];
+  const existingQuestions = new Set(existingCards.map(card => card.question.toLocaleLowerCase()));
+  const fallbackCards = [];
+  let passageIndex = 0;
+
+  while (fallbackCards.length < count) {
+    const passage = passages[passageIndex % passages.length];
+    const cardNumber = existingCards.length + fallbackCards.length + 1;
+    const prompt = questionPrompts[passageIndex % questionPrompts.length];
+    const question = `${prompt} (point ${cardNumber})`;
+    if (!existingQuestions.has(question.toLocaleLowerCase())) {
+      existingQuestions.add(question.toLocaleLowerCase());
+      fallbackCards.push({ question, answer: passage });
+    }
+    passageIndex++;
+  }
+
+  return fallbackCards;
+}
+
 async function getProviderErrorDetail(response) {
   const body = await response.text();
   let detail = body;
@@ -104,33 +151,45 @@ export async function generateFlashcards(lectureContent, enableSearch = false, c
   if (typeof enableSearch !== 'boolean') {
     throw new Error('Search preference must be true or false.');
   }
-  if (!process.env.NEBIUS_API_KEY) {
-    throw Object.assign(new Error('NEBIUS_API_KEY is missing from .env.'), { status: 503 });
-  }
-
-  const searchContext = enableSearch ? await searchContextFor(lectureContent) : '';
   const source = lectureContent.slice(0, 20000);
   const questions = new Set();
   const uniqueCards = [];
+  let searchContext = '';
 
-  for (let attempt = 0; attempt < 3 && uniqueCards.length < count; attempt++) {
-    const neededCount = count - uniqueCards.length;
-    const candidates = await requestFlashcards(source, neededCount, searchContext, uniqueCards);
-    for (const card of validateCards(candidates)) {
-      if (uniqueCards.length >= count) break;
-      const key = card.question.toLocaleLowerCase();
-      if (questions.has(key)) continue;
-      questions.add(key);
-      uniqueCards.push(card);
+  if (enableSearch) {
+    try {
+      searchContext = await searchContextFor(source);
+    } catch (error) {
+      console.warn('Web research unavailable; continuing generation without it:', error?.message || 'Unknown error');
     }
   }
 
-  if (uniqueCards.length !== count) {
-    throw Object.assign(
-      new Error('AI generation could not complete all requested cards after several attempts. Please try again or use shorter study material.'),
-      { status: 502 }
-    );
+  if (process.env.NEBIUS_API_KEY) {
+    for (let attempt = 0; attempt < 2 && uniqueCards.length < count; attempt++) {
+      const neededCount = count - uniqueCards.length;
+      try {
+        const candidates = await requestFlashcards(source, neededCount, searchContext, uniqueCards);
+        for (const card of validateCards(candidates)) {
+          if (uniqueCards.length >= count) break;
+          const key = card.question.toLocaleLowerCase();
+          if (questions.has(key)) continue;
+          questions.add(key);
+          uniqueCards.push(card);
+        }
+      } catch (error) {
+        console.warn(`AI card generation attempt ${attempt + 1} failed:`, error?.message || 'Unknown error');
+      }
+    }
+  } else {
+    console.warn('NEBIUS_API_KEY is missing; using study-material fallback cards.');
   }
+
+  const remainingCount = count - uniqueCards.length;
+  if (remainingCount > 0) {
+    console.warn(`Using ${remainingCount} study-material fallback card(s) to complete the requested deck.`);
+    uniqueCards.push(...createFallbackCards(source, remainingCount, uniqueCards));
+  }
+
   return uniqueCards;
 }
 
@@ -145,7 +204,7 @@ async function requestFlashcards(lectureContent, cardCount, searchContext, exist
         'Content-Type': 'application/json',
         Authorization: `Bearer ${process.env.NEBIUS_API_KEY}`
       },
-      signal: AbortSignal.timeout(15000),
+      signal: AbortSignal.timeout(10000),
       body: JSON.stringify({
         model,
         reasoning_effort: 'none',
