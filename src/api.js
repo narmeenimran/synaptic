@@ -60,6 +60,22 @@ function handleRouteError(res, error, label) {
   return res.status(500).json({ error: 'The request could not be completed. Please try again.' });
 }
 
+function getRequestedCardCount(body) {
+  const requestedCount = Number(body?.count ?? body?.cardCount ?? 10);
+  if (!Number.isFinite(requestedCount)) return 10;
+  return Math.min(20, Math.max(1, Math.trunc(requestedCount)));
+}
+
+function handleGenerationError(res, error, label) {
+  if (error?.status === 400 || error?.status === 422) {
+    return res.status(error.status).json({ error: error.message });
+  }
+  console.error(`${label}:`, error?.message || 'Unknown error');
+  return res.status(500).json({
+    error: error?.message || 'Card generation failed. Please try again.'
+  });
+}
+
 function createUserClient(accessToken) {
   const { url, anonKey } = getSupabaseConfig();
   return createClient(url, anonKey, {
@@ -401,10 +417,7 @@ router.post('/generate', async (req, res) => {
   try {
     const title = validateText(req.body.title, 'Deck title', 1, 100);
     const content = validateText(req.body.lectureContent, 'Study material', 30, 100000);
-    const cardCount = Number(req.body.cardCount);
-    if (![5, 10, 15, 20].includes(cardCount)) {
-      return res.status(400).json({ error: 'Choose between 5, 10, 15, or 20 cards.' });
-    }
+    const cardCount = getRequestedCardCount(req.body);
     if (typeof req.body.enableSearch !== 'boolean') {
       return res.status(400).json({ error: 'Search preference must be true or false.' });
     }
@@ -419,7 +432,7 @@ router.post('/generate', async (req, res) => {
     });
     return res.status(201).json({ success: true, deck });
   } catch (error) {
-    return handleRouteError(res, error, 'Flashcard generation failed');
+    return handleGenerationError(res, error, 'Flashcard generation failed');
   }
 });
 
@@ -433,10 +446,7 @@ router.post('/upload-pdf', upload.single('pdfFile'), async (req, res) => {
     }
 
     const title = validateText(req.body.title, 'Deck title', 1, 100);
-    const cardCount = Number(req.body.cardCount);
-    if (![5, 10, 15, 20].includes(cardCount)) {
-      return res.status(400).json({ error: 'Choose between 5, 10, 15, or 20 cards.' });
-    }
+    const cardCount = getRequestedCardCount(req.body);
     if (!['true', 'false'].includes(req.body.enableSearch)) {
       return res.status(400).json({ error: 'Search preference must be true or false.' });
     }
@@ -457,7 +467,7 @@ router.post('/upload-pdf', upload.single('pdfFile'), async (req, res) => {
     });
     return res.status(201).json({ success: true, deck });
   } catch (error) {
-    return handleRouteError(res, error, 'PDF upload failed');
+    return handleGenerationError(res, error, 'PDF upload failed');
   }
 });
 

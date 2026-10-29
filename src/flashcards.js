@@ -2,13 +2,26 @@ const DEFAULT_MODEL = 'nvidia/Nemotron-3_5-Lightning';
 const NEBIUS_BASE_URL = 'https://api.tokenfactory.nebius.com/v1';
 
 function extractCards(content) {
+  if (typeof content !== 'string') return [];
   const cleaned = content.trim()
     .replace(/^```(?:json)?\s*/i, '')
     .replace(/\s*```$/, '');
-  const parsed = JSON.parse(cleaned);
-  const cards = Array.isArray(parsed) ? parsed : parsed?.cards;
-  if (!Array.isArray(cards)) throw new Error('The AI response did not contain a flashcard list.');
-  return cards;
+  try {
+    const parsed = JSON.parse(cleaned);
+    const cards = Array.isArray(parsed) ? parsed : parsed?.cards;
+    return Array.isArray(cards) ? cards : [];
+  } catch {
+    const start = cleaned.indexOf('{');
+    const end = cleaned.lastIndexOf('}');
+    if (start < 0 || end < start) return [];
+    try {
+      const parsed = JSON.parse(cleaned.slice(start, end + 1));
+      const cards = Array.isArray(parsed) ? parsed : parsed?.cards;
+      return Array.isArray(cards) ? cards : [];
+    } catch {
+      return [];
+    }
+  }
 }
 
 function validateCards(cards) {
@@ -84,8 +97,9 @@ export async function generateFlashcards(lectureContent, enableSearch = false, c
   if (typeof lectureContent !== 'string' || lectureContent.trim().length < 30 || lectureContent.length > 100000) {
     throw new Error('Study material must contain between 30 and 100,000 characters.');
   }
-  if (![5, 10, 15, 20].includes(Number(cardCount))) {
-    throw new Error('Choose between 5, 10, 15, or 20 flashcards.');
+  const count = Number(cardCount);
+  if (!Number.isInteger(count) || count < 1 || count > 20) {
+    throw new Error('Choose between 1 and 20 flashcards.');
   }
   if (typeof enableSearch !== 'boolean') {
     throw new Error('Search preference must be true or false.');
@@ -95,63 +109,27 @@ export async function generateFlashcards(lectureContent, enableSearch = false, c
   }
 
   const searchContext = enableSearch ? await searchContextFor(lectureContent) : '';
-  const count = Number(cardCount);
-  const cards = [];
+  const candidates = await requestFlashcards(lectureContent.slice(0, 20000), count, searchContext);
+  const cards = validateCards(candidates);
   const questions = new Set();
-
-  while (cards.length < count) {
-    const batchCount = Math.min(5, count - cards.length);
-    const batchEnd = cards.length + batchCount;
-    let consecutiveEmptyResponses = 0;
-    let batchAttempts = 0;
-
-    while (cards.length < batchEnd && batchAttempts < 8 && consecutiveEmptyResponses < 5) {
-      const remaining = batchEnd - cards.length;
-      const requestedCandidates = Math.max(5, remaining);
-      batchAttempts++;
-      const candidates = await requestFlashcardBatch(
-        lectureContent,
-        requestedCandidates,
-        searchContext,
-        cards
-      );
-      const freshCards = [];
-      for (const card of candidates) {
-        if (freshCards.length >= remaining) break;
-        const key = card.question.toLocaleLowerCase();
-        if (questions.has(key)) continue;
-        questions.add(key);
-        freshCards.push(card);
-      }
-
-      if (!freshCards.length) {
-        consecutiveEmptyResponses++;
-        console.warn(`AI returned no new valid flashcards; retrying the remaining ${remaining} card(s).`);
-        continue;
-      }
-
-      consecutiveEmptyResponses = 0;
-      cards.push(...freshCards);
-    }
-
-    if (cards.length < batchEnd && batchAttempts >= 8) {
-      throw Object.assign(
-        new Error(`The AI could not complete the requested ${count} flashcards after several attempts. Please try again or use shorter study material.`),
-        { status: 502 }
-      );
-    }
-    if (cards.length < batchEnd && consecutiveEmptyResponses >= 5) {
-      throw Object.assign(
-        new Error(`The AI repeatedly returned incomplete flashcards. ${cards.length} of ${count} were generated; please try again or use shorter study material.`),
-        { status: 502 }
-      );
-    }
+  const uniqueCards = [];
+  for (const card of cards) {
+    if (uniqueCards.length >= count) break;
+    const key = card.question.toLocaleLowerCase();
+    if (questions.has(key)) continue;
+    questions.add(key);
+    uniqueCards.push(card);
   }
-
-  return cards;
+  if (uniqueCards.length !== count) {
+    throw Object.assign(
+      new Error(`The AI returned ${uniqueCards.length} of ${count} requested flashcards. Please try again or use shorter study material.`),
+      { status: 502 }
+    );
+  }
+  return uniqueCards;
 }
 
-async function requestFlashcardBatch(lectureContent, cardCount, searchContext, previousCards) {
+async function requestFlashcards(lectureContent, cardCount, searchContext) {
   const model = process.env.NEBIUS_MODEL || DEFAULT_MODEL;
   const baseUrl = (process.env.NEBIUS_BASE_URL || NEBIUS_BASE_URL).replace(/\/+$/, '');
   let response;
@@ -162,7 +140,7 @@ async function requestFlashcardBatch(lectureContent, cardCount, searchContext, p
         'Content-Type': 'application/json',
         Authorization: `Bearer ${process.env.NEBIUS_API_KEY}`
       },
-      signal: AbortSignal.timeout(60000),
+      signal: AbortSignal.timeout(45000),
       body: JSON.stringify({
         model,
         reasoning_effort: 'none',
@@ -170,15 +148,15 @@ async function requestFlashcardBatch(lectureContent, cardCount, searchContext, p
         messages: [
           {
             role: 'system',
-            content: 'Create accurate active-recall flashcards grounded only in the provided study material. Return valid JSON only, as an object with a "cards" array. Each card must contain only string "question" and "answer" fields. Every card must test a different fact or relationship, and must not repeat the facts or questions in the prior cards provided by the user. Choose uncovered facts from other parts of the source; if necessary, test a distinct implication or contrast that is directly supported by the material. Keep cards concise and escape JSON strings correctly.'
+            content: 'Create accurate active-recall flashcards grounded only in the provided study material. Return valid JSON only, as an object with a "cards" array. Each card must contain only string "question" and "answer" fields. Every card must test a different fact or relationship. Keep cards concise and escape JSON strings correctly.'
           },
           {
             role: 'user',
-            content: `Create exactly ${cardCount} new flashcards in this batch. The following complete cards already exist; do not repeat their questions or test the same facts: ${JSON.stringify(previousCards)}. Favor concise questions and answers. Do not invent claims unsupported by the material.\n${searchContext ? `Use this additional web context only when relevant:\n${searchContext}\n` : ''}Study material:\n${lectureContent.trim()}`
+            content: `Create exactly ${cardCount} distinct flashcards. Favor concise questions and answers. Do not invent claims unsupported by the material.\n${searchContext ? `Use this additional web context only when relevant:\n${searchContext}\n` : ''}Study material:\n${lectureContent.trim()}`
           }
         ],
         temperature: 0.5,
-        max_tokens: Math.min(5000, cardCount * 300)
+        max_tokens: cardCount * 150
       })
     });
   } catch {
@@ -191,13 +169,12 @@ async function requestFlashcardBatch(lectureContent, cardCount, searchContext, p
     throw Object.assign(new Error(providerErrorMessage(response.status)), { status: 502 });
   }
 
-  const result = await response.json();
-  const content = result.choices?.[0]?.message?.content;
+  let result;
   try {
-    if (typeof content !== 'string') throw new Error('The AI returned an empty response.');
-    return validateCards(extractCards(content)).slice(0, cardCount);
-  } catch (error) {
-    console.warn(`AI flashcard batch did not validate (${cardCount} requested):`, error.message);
-    return [];
+    result = await response.json();
+  } catch {
+    throw Object.assign(new Error('The AI returned an invalid response. Please try again.'), { status: 502 });
   }
+  const content = result.choices?.[0]?.message?.content;
+  return extractCards(content);
 }

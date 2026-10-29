@@ -36,21 +36,20 @@ test('generation requests structured JSON and accepts escaped card text', async 
   assert.equal(generated[0].question, cards[0].question);
 });
 
-test('generation fills a partial batch by requesting only the missing cards', async t => {
+test('generation requests the selected count in one call with a bounded prompt and token budget', async t => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.NEBIUS_API_KEY;
   process.env.NEBIUS_API_KEY = 'test-key';
-  const cards = Array.from({ length: 5 }, (_, index) => ({
+  const cards = Array.from({ length: 20 }, (_, index) => ({
     question: `Question ${index + 1}`,
     answer: `Answer ${index + 1}`
   }));
-  const requestBodies = [];
+  let requestBody;
 
   globalThis.fetch = async (_url, options) => {
-    requestBodies.push(JSON.parse(options.body));
-    const responseCards = requestBodies.length === 1 ? cards.slice(0, 4) : cards.slice(4);
+    requestBody = JSON.parse(options.body);
     return new Response(JSON.stringify({
-      choices: [{ message: { content: JSON.stringify({ cards: responseCards }) } }]
+      choices: [{ message: { content: JSON.stringify({ cards }) } }]
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   };
 
@@ -60,16 +59,13 @@ test('generation fills a partial batch by requesting only the missing cards', as
     else process.env.NEBIUS_API_KEY = originalApiKey;
   });
 
-  const generated = await generateFlashcards(
-    'ATP stores energy for cellular processes, and it can transfer a phosphate group to other molecules.',
-    false,
-    5
-  );
+  const generated = await generateFlashcards('x'.repeat(100000), false, 20);
 
-  assert.equal(generated.length, 5);
-  assert.equal(requestBodies.length, 2);
-  assert.match(requestBodies[1].messages[1].content, /Create exactly 5 new flashcards/);
-  assert.match(requestBodies[1].messages[1].content, /Question 1/);
+  assert.equal(generated.length, 20);
+  assert.equal(requestBody.model, 'nvidia/Nemotron-3_5-Lightning');
+  assert.equal(requestBody.max_tokens, 3000);
+  assert.ok(requestBody.messages[1].content.length < 21000);
+  assert.match(requestBody.messages[1].content, /Create exactly 20 distinct flashcards/);
 });
 
 test('generation validates material, card-count, and search boundaries before calling AI', async t => {
@@ -92,8 +88,8 @@ test('generation validates material, card-count, and search boundaries before ca
   const invalidInputs = [
     [ 'x'.repeat(29), false, 5, /between 30 and 100,000/ ],
     [ 'x'.repeat(100001), false, 5, /between 30 and 100,000/ ],
-    [ validMaterial, false, 4, /Choose between 5, 10, 15, or 20/ ],
-    [ validMaterial, false, 21, /Choose between 5, 10, 15, or 20/ ],
+    [ validMaterial, false, 0, /Choose between 1 and 20/ ],
+    [ validMaterial, false, 21, /Choose between 1 and 20/ ],
     [ validMaterial, 'true', 5, /Search preference must be true or false/ ]
   ];
 
@@ -103,7 +99,7 @@ test('generation validates material, card-count, and search boundaries before ca
   assert.equal(fetchCalls, 0);
 });
 
-test('generation accepts 30 and 100,000 character inputs and all supported card counts', async t => {
+test('generation accepts 30 and 100,000 character inputs and card counts from 1 through 20', async t => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.NEBIUS_API_KEY;
   process.env.NEBIUS_API_KEY = 'test-key';
@@ -129,29 +125,24 @@ test('generation accepts 30 and 100,000 character inputs and all supported card 
   });
 
   for (const material of ['x'.repeat(30), 'x'.repeat(100000)]) {
-    for (const count of [5, 10, 15, 20]) {
+    for (const count of [1, 5, 10, 15, 20]) {
       const cards = await generateFlashcards(material, false, count);
       assert.equal(cards.length, count, `${material.length} chars, ${count} cards`);
     }
   }
 });
 
-test('generation continues until a 20-card deck is full when the AI under-delivers each batch', async t => {
+test('generation rejects incomplete output without making additional slow AI calls', async t => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.NEBIUS_API_KEY;
   process.env.NEBIUS_API_KEY = 'test-key';
-  const requestedCounts = [];
-  let nextConcept = 1;
+  let fetchCalls = 0;
   globalThis.fetch = async (_url, options) => {
-    const body = JSON.parse(options.body);
-    const requested = Number(body.messages[1].content.match(/Create exactly (\d+) (?:distinct|new)/)[1]);
-    requestedCounts.push(requested);
-    const generated = Math.min(2, requested);
-    const cards = Array.from({ length: generated }, (_, index) => ({
-      question: `Unique concept ${nextConcept + index}`,
-      answer: `Answer ${nextConcept + index}`
+    fetchCalls++;
+    const cards = Array.from({ length: 2 }, (_, index) => ({
+      question: `Unique concept ${index + 1}`,
+      answer: `Answer ${index + 1}`
     }));
-    nextConcept += generated;
     return new Response(JSON.stringify({
       choices: [{ message: { content: JSON.stringify({ cards }) } }]
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
@@ -163,20 +154,19 @@ test('generation continues until a 20-card deck is full when the AI under-delive
     else process.env.NEBIUS_API_KEY = originalApiKey;
   });
 
-  const cards = await generateFlashcards(
-    'ATP stores energy for cellular processes, and it can transfer a phosphate group to other molecules.',
-    false,
-    20
+  await assert.rejects(
+    generateFlashcards(
+      'ATP stores energy for cellular processes, and it can transfer a phosphate group to other molecules.',
+      false,
+      20
+    ),
+    /The AI returned 2 of 20 requested flashcards/
   );
 
-  assert.equal(cards.length, 20);
-  assert.equal(new Set(cards.map(card => card.question)).size, 20);
-  assert.ok(requestedCounts.length > 4);
-  assert.equal(requestedCounts[0], 5);
-  assert.ok(requestedCounts.every(count => count >= 1 && count <= 5));
+  assert.equal(fetchCalls, 1);
 });
 
-test('generation reports a clear error after repeated invalid AI batches', async t => {
+test('generation safely rejects raw text responses as a clean incomplete response', async t => {
   const originalFetch = globalThis.fetch;
   const originalApiKey = process.env.NEBIUS_API_KEY;
   process.env.NEBIUS_API_KEY = 'test-key';
@@ -184,7 +174,7 @@ test('generation reports a clear error after repeated invalid AI batches', async
   globalThis.fetch = async () => {
     fetchCalls++;
     return new Response(JSON.stringify({
-      choices: [{ message: { content: '{"cards":[{"question":"broken"' } }]
+      choices: [{ message: { content: 'The generated cards are unavailable right now.' } }]
     }), { status: 200, headers: { 'Content-Type': 'application/json' } });
   };
 
@@ -200,7 +190,7 @@ test('generation reports a clear error after repeated invalid AI batches', async
       false,
       5
     ),
-    /AI repeatedly returned incomplete flashcards\. 0 of 5 were generated/
+    /The AI returned 0 of 5 requested flashcards/
   );
-  assert.equal(fetchCalls, 5);
+  assert.equal(fetchCalls, 1);
 });

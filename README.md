@@ -4,9 +4,9 @@ Synaptic is an AI-assisted study workspace designed to transform text-based PDFs
 
 # Core Capabilities
 
-1. Automated PDF Parsing & Deck Generation: Upload text-based PDFs (up to 10 MB, processed entirely in memory without server storage) to instantly generate custom 5, 10, 15, or 20-card flashcard decks.
+1. Automated PDF Parsing & Deck Generation: Upload text-based PDFs (up to 10 MB, processed entirely in memory without server storage) to generate flashcard decks of up to 20 cards.
 
-2. Resilient AI Batching: Flashcards are requested in targeted micro-batches. Deduplication and schema validation ensure incomplete or malformed cards are automatically replaced before finalizing a deck.
+2. Bounded AI Generation: Each deck uses one time-limited AI request with a bounded source-text prompt and structured-response validation to reduce serverless latency and reject incomplete or malformed output safely.
 
 3. Cognitive Spaced Repetition (SRS): Study active due cards or restart full deck reviews using standard SuperMemo-based confidence ratings (Again, Hard, Good, Easy).
 
